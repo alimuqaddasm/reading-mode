@@ -1,8 +1,13 @@
-# Reading mode
+# Reading Mode
 
-A test of the Makarim ul Akhlaq Atlas reader as a public web page: Bab 6, Satan, whispering, refuge (شیطان اور استعاذہ).
+Every lesson, note, flag and open question in one reader, linked from the Maarif Work Map.
 
-- `index.html`: the reader (Urdu in Gulzar, other scripts in Vazirmatn; scholar colours MM red, AH green, EZ purple, JS orange).
-- `data/b06.html`: the chapter text, built from the atlas's Urdu digest by `akhlaq-atlas/artifact/build.py` in the makarim-ul-akhlaq repository.
+- `index.html`, `style.css`, `app.js`: the site. It holds no course material.
+- The material lives in the private hub repo under `reading/`, rebuilt by the hub's scan (`scan/reading.py`) from the
+  course repos every 3 hours. The page reads it with the viewer's own GitHub key (the same key as the Work Map; both
+  sites are on alimuqaddasm.github.io, so one key in this browser serves both).
+- Marks (Keep, Drop, Maybe, Key, Move, Needs a bridge) and notes are saved to `reading/notes.json` in the hub.
+- Pilot: ZM B1 (hub sabaq, class lesson texts, papers) and Mahdaviyat B15 (atlas Fasl lessons and the atlas text).
 
-To host: Settings > Pages > Build and deployment > Deploy from a branch, choose this branch and `/ (root)`.
+To host: Settings > Pages > Deploy from a branch, choose the branch with these files and `/ (root)`.
+The earlier test page (Akhlaq Atlas Bab 6) is still on the `gh-pages` branch.
