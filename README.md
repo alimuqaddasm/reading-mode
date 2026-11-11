@@ -10,4 +10,4 @@ Every lesson, note, flag and open question in one reader, linked from the Maarif
 - Pilot: ZM B1 (hub sabaq, class lesson texts, papers) and Mahdaviyat B15 (atlas Fasl lessons and the atlas text).
 
 To host: Settings > Pages > Deploy from a branch, choose the branch with these files and `/ (root)`.
-The earlier test page (Akhlaq Atlas Bab 6) is still on the `gh-pages` branch.
+Published from the `gh-pages` branch.
