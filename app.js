@@ -55,10 +55,11 @@ const theme = LS.get('theme', ''); if (theme) document.documentElement.dataset.t
 async function load() {
   screen('loading');
   try {
-    S.index = await data('index.json');
-    try { S.audio = JSON.parse(await gh('audio/index.json', null, true, DATA)); } catch (e) { S.audio = {}; }
-    try { const j = await gh('notes.json'); S.notes = JSON.parse(b64dec(j.content)); S.notesSha = j.sha; S.notes.notes = S.notes.notes || {}; S.notes.marks = S.notes.marks || {}; }
-    catch (e) { if (e.status !== 404) throw e; }
+    const fonts = document.fonts ? Promise.race([Promise.all(['21px Gulzar', '700 21px "Noto Nastaliq Urdu"', '21px Amiri', '21px Vazirmatn', '14px Geist', '600 14px Geist'].map(f => document.fonts.load(f, 'ابپ Aa1'))).catch(() => {}), new Promise(r => setTimeout(r, 3000))]) : null;
+    const [idx, aud, j] = await Promise.all([data('index.json'), gh('audio/index.json', null, true, DATA).then(JSON.parse).catch(() => ({})), gh('notes.json').catch(e => { if (e.status !== 404) throw e; return null; }), fonts]);
+    S.index = idx; S.audio = aud || {};
+    if (j) { S.notes = JSON.parse(b64dec(j.content)); S.notesSha = j.sha; } else { S.notes = { notes: {}, marks: {} }; S.notesSha = null; }
+    S.notes.notes = S.notes.notes || {}; S.notes.marks = S.notes.marks || {};
     route();
   } catch (e) {
     if (e.status === 401 || e.status === 404) { setKey(''); connect(e.status === 404 ? 'This key cannot open hub-data and hub-notes. Make a key for those two repos (steps above) and paste it here.' : e.message); return; }
@@ -71,11 +72,11 @@ $('#retry').addEventListener('click', load);
 $('#rekey').addEventListener('click', () => { setKey(''); connect(); });
 
 /* ---------- saving notes and marks to the hub ---------- */
-let saveT = 0, saving = false, dirty = false;
+let saveT = 0, saving = false, dirty = false; const GONE = new Set();
 function setSave(t) { const el = $('#save'); if (el) el.textContent = t; }
 function queueSave() { dirty = true; setSave('Saving'); clearTimeout(saveT); saveT = setTimeout(flush, 1200); }
 async function flush() {
-  if (saving || !dirty) return; saving = true; dirty = false;
+  if (saving || !dirty || !getKey()) return; saving = true; dirty = false; let failed = false;
   const body = sha => JSON.stringify({ message: 'Reading Mode: notes and marks', content: b64enc(JSON.stringify(S.notes, null, 1) + '\n'), sha: sha || undefined, branch: 'main' });
   const put = sha => gh('notes.json', { method: 'PUT', headers: { Authorization: 'Bearer ' + getKey(), Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, body: body(sha) });
   try {
@@ -84,14 +85,15 @@ async function flush() {
     catch (e) {
       if (e.status !== 409 && e.status !== 422) throw e;
       const j = await gh('notes.json'); const theirs = JSON.parse(b64dec(j.content));
-      for (const k of ['notes', 'marks']) for (const [id, v] of Object.entries(theirs[k] || {})) { const mine = S.notes[k][id]; if (!mine || (v.updated || '') > (mine.updated || '')) S.notes[k][id] = v; }
+      for (const k of ['notes', 'marks']) for (const [id, v] of Object.entries(theirs[k] || {})) { if (GONE.has(id)) continue; const mine = S.notes[k][id]; if (!mine || (v.updated || '') > (mine.updated || '')) S.notes[k][id] = v; }
+      annotateAll();
       r = await put(j.sha);
     }
     S.notesSha = r.content.sha; setSave('Saved');
   } catch (e) {
-    dirty = true; setSave(e.status === 403 || e.status === 404 ? 'Not saved: the key can read but not write' : 'Not saved, will retry');
+    dirty = true; failed = true; setSave(e.status === 403 || e.status === 404 ? 'Not saved: the key can read but not write' : 'Not saved, will retry');
     if (e.status !== 403) setTimeout(flush, 15000);
-  } finally { saving = false; if (dirty) queueSave(); }
+  } finally { saving = false; if (dirty && !failed) queueSave(); }
 }
 addEventListener('beforeunload', e => { if (dirty || saving) { e.preventDefault(); e.returnValue = ''; } });
 
@@ -103,34 +105,46 @@ function parse() {
 const hash = (seg, q) => '#' + seg.join('/') + (q && Object.keys(q).length ? '?' + new URLSearchParams(q) : '');
 function go(seg, q) { const h = hash(seg, q); if (location.hash === h) route(); else location.hash = h; }
 addEventListener('hashchange', route);
+let routeGen = 0;
+function sameLesson(key, q) {
+  if (!S.cur || S.cur.key !== key || !$('.desk') || q.get('ans') || (q.get('t') || 'tc') !== S.cur.tab0) return false;
+  const b = q.get('b'), t = b && document.getElementById('r-' + b); S.cur.block = b;
+  if (t) { t.scrollIntoView({ block: 'start' }); focusRow(t); } else scrollTo(0, 0);
+  return true;
+}
 async function route() {
   if (!S.index) return;
-  const { seg, q } = parse();
-  closeDrawer();
+  const g = ++routeGen, live = () => g === routeGen;
+  let seg = [], q = new URLSearchParams();
+  try { ({ seg, q } = parse()); } catch (e) { location.hash = ''; return; }
+  closeDrawer(); $$('.over').forEach(o => o.parentNode.removeChild(o)); $('#selbar').hidden = true; selCtx = null;
   const view = $('#view'); screen('app');
   try {
     const course = S.index.courses.find(c => c.id === seg[0]), atlas = S.index.atlases.find(a => a.id === seg[0]);
     if (!seg.length) return library();
-    if (seg[0] === 'notes') return myNotes();
+    if (seg[0] === 'notes') return await myNotes(live);
     if (course && !seg[1]) return courseView(course);
-    if (course && seg[1] === 'papers') return paperView(course, +seg[2]);
+    if (course && seg[1] === 'papers') return await paperView(course, +seg[2], live);
     if (course && seg[2]) {
-      view.innerHTML = '<div class="loading">Loading</div>';
       const slug = /^\d+$/.test(seg[2]) ? 'S' + String(seg[2]).padStart(2, '0') : seg[2];
-      const d = await data(`${course.id}/B${seg[1]}/${slug}.json`);
-      return lessonView({ d, key: `${course.id}/B${seg[1]}/${slug}`, course, bab: +seg[1], tab: q.get('t') || 'tc', block: q.get('b') });
+      if (sameLesson(`${course.id}/B${seg[1]}/${slug}`, q)) return;
+      view.innerHTML = '<div class="loading">Loading</div>';
+      const d = await data(`${course.id}/B${seg[1]}/${slug}.json`); if (!live()) return;
+      return lessonView({ d, key: `${course.id}/B${seg[1]}/${slug}`, course, bab: +seg[1], tab: q.get('t') || 'tc', block: q.get('b'), ans: q.get('ans') });
     }
     if (atlas && !seg[1]) return atlasView(atlas, null);
-    if (atlas && seg[1] === 'other') return textView(await data(`${atlas.id}/other.json`), [atlas.ur, 'Introduction and appendices'], [atlas.id]);
+    if (atlas && seg[1] === 'other') { const d = await data(`${atlas.id}/other.json`); if (!live()) return; return textView(d, [atlas.ur, 'Introduction and appendices'], [atlas.id]); }
     if (atlas && !seg[2]) return atlasView(atlas, +seg[1]);
-    if (atlas && seg[2] === 'atlas') return textView(await data(`${atlas.id}/B${seg[1]}/atlas.json`), [atlas.ur, `B${seg[1]}`, 'Atlas text'], [atlas.id, seg[1]]);
+    if (atlas && seg[2] === 'atlas') { const d = await data(`${atlas.id}/B${seg[1]}/atlas.json`); if (!live()) return; return textView(d, [atlas.ur, `B${seg[1]}`, 'Atlas text'], [atlas.id, seg[1]]); }
     if (atlas) {
+      if (sameLesson(`${atlas.id}/B${seg[1]}/${seg[2]}`, q)) return;
       view.innerHTML = '<div class="loading">Loading</div>';
-      const d = await data(`${atlas.id}/B${seg[1]}/${seg[2]}.json`);
+      const d = await data(`${atlas.id}/B${seg[1]}/${seg[2]}.json`); if (!live()) return;
       return lessonView({ d, key: `${atlas.id}/B${seg[1]}/${seg[2]}`, atlas, bab: +seg[1], tab: q.get('t') || 'tc', block: q.get('b') });
     }
     library();
   } catch (e) {
+    if (!live()) return;
     if (e.status === 401) { setKey(''); connect(e.message); return; }
     view.innerHTML = `<div class="page"><div class="panel"><h3>This could not be opened</h3><p class="ui" style="direction:ltr;text-align:right">${esc(e.message)}</p><a class="btn" href="#">Back to the library</a></div></div>`;
     topBar({ crumbs: [] });
@@ -150,15 +164,16 @@ function topBar(o) {
     <button type="button" class="btn" id="bForget" title="Remove your key from this browser">Forget key</button></span></div>`;
   if (o.second) h += `<div class="top2">${o.second}</div>`;
   $('#top').innerHTML = h;
-  $('#bForget').onclick = () => { if (dirty || saving) { toast('Wait a moment: your last note is still saving.'); return; } setKey(''); S.index = null; connect('Your key was removed from this browser.'); };
+  $('#bForget').onclick = () => { if (dirty || saving) { toast('Wait a moment: your last note is still saving.'); return; } closePlayer(); closeDrawer(); setKey(''); S.index = null; S.cur = null; S.notes = { notes: {}, marks: {} }; $('#view').innerHTML = ''; connect('Your key was removed from this browser.'); };
   $('#bTheme').onclick = () => { const r = document.documentElement; const dark = r.dataset.theme === 'dark' || (!r.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches); r.dataset.theme = dark ? 'light' : 'dark'; LS.set('theme', r.dataset.theme); };
   const tb = $('#bToc'); if (o.rail) tb.onclick = openDrawer; else tb.hidden = true;
 }
 function openDrawer() {
+  closeDrawer();
   const r = $('.desk>.rail'); if (!r) return;
   const d = document.createElement('div'); d.className = 'drawer'; d.id = 'drawer';
-  d.innerHTML = `<div class="scrim"></div><div class="dp" role="dialog" aria-label="Contents"><nav class="rail">${r.innerHTML}</nav></div>`;
-  document.body.append(d); d.querySelector('.scrim').onclick = closeDrawer;
+  d.innerHTML = `<div class="scrim"></div><div class="dp" role="dialog" aria-label="Contents"><button type="button" class="btn dclose" data-dclose>Close</button><nav class="rail">${r.innerHTML}</nav></div>`;
+  document.body.append(d); d.querySelector('.scrim').onclick = closeDrawer; d.querySelector('[data-dclose]').onclick = closeDrawer; d.querySelector('[data-dclose]').focus();
   d.addEventListener('click', e => { if (e.target.closest('a')) closeDrawer(); });
 }
 function closeDrawer() { const d = $('#drawer'); if (d) d.remove(); }
@@ -258,7 +273,7 @@ function atlasView(a, bn) {
     for (const f of b.fasls) {
       const used = (f.used || []).map(u => `<a class="pill s" href="#${u.course}/${u.bab}/${u.slug}">${esc(u.code)}</a>`).join('');
       if (!f.parts.length) { h += `<div class="li off"><span class="n">F${f.id.split('.')[1]}</span><span class="t">${esc(f.ur)}</span><span class="meta"><span class="pill off">not built yet</span>${used}</span></div>`; continue; }
-      f.parts.forEach((p, i) => { h += `<a class="li" href="#${a.id}/${b.n}/${p.id}"><span class="n" style="color:var(--atlas)">F${f.id.split('.')[1]}${f.parts.length > 1 ? '.' + (i + 1) : ''}</span><span class="t">${esc(p.title || f.ur)}</span><span class="meta"><span class="pill f">${esc(p.label)}</span>${i === 0 ? used : ''}</span></a>`; });
+      f.parts.forEach((p, i) => { h += `<div class="li" data-href="#${a.id}/${b.n}/${p.id}" role="link" tabindex="0"><span class="n" style="color:var(--atlas)">F${f.id.split('.')[1]}${f.parts.length > 1 ? '.' + (i + 1) : ''}</span><span class="t">${esc(p.title || f.ur)}</span><span class="meta"><span class="pill f">${esc(p.label)}</span>${i === 0 ? used : ''}</span></div>`; });
     }
     h += `</div></section>`;
     const prev = a.babs.find(x => x.n === b.n - 1), next = a.babs.find(x => x.n === b.n + 1);
@@ -288,8 +303,8 @@ function md(t) {
   flushP(); flushL(); if (pre) out += `<pre>${esc(pre.join('\n'))}</pre>`;
   return out.replace(/<\/pre><pre>/g, '\n');
 }
-async function paperView(c, i) {
-  const d = await data(`${c.id}/papers/${String(i).padStart(3, '0')}.json`);
+async function paperView(c, i, live) {
+  const d = await data(`${c.id}/papers/${String(i).padStart(3, '0')}.json`); if (live && !live()) return;
   textView(d, [c.ur, 'Papers', d.path.split('/').pop()], [c.id]);
 }
 function textView(d, crumbs, back) {
@@ -352,7 +367,7 @@ function qCard(b) {
     <button type="button" class="btn" data-act="answer" data-q="${esc(b.qid)}" style="align-self:flex-start">Answer</button></div>`;
 }
 function lessonView(L) {
-  const d = L.d; S.cur = L;
+  L.tab0 = L.tab0 || L.tab; const d = L.d; if (!L.keep && (!S.cur || S.cur.key !== L.key)) { S.curBlock = null; curSec = -1; } S.cur = L;
   const isS = d.kind === 'sabaq', isC = d.kind === 'class', isF = d.kind === 'fasl';
   const items = d.items || [];
   const nq = items.filter(i => i.t === 'q').length, nn = items.filter(i => i.t === 'tnote').length, ntc = items.filter(i => i.tc && !SIDE_T.includes(i.t)).length;
@@ -361,6 +376,7 @@ function lessonView(L) {
   if (nq) tabs.push(['questions', 'Open questions', nq]);
   if (isS && (d.changes || []).length) tabs.push(['changes', 'Changes', d.changes.reduce((n, g) => n + (g.items || []).length, 0)]);
   tabs.push(['files', 'Decks and files', (d.files || []).length]);
+  if (!tabs.some(t => t[0] === L.tab)) L.tab = 'tc';
   if (!items.length) L.tab = L.tab === 'tc' ? 'text' : L.tab;
   const seg = parse().seg;
   const tabH = tabs.map(([k, t, n]) => `<a href="${hash(seg, k === 'tc' ? {} : { t: k })}"${L.tab === k ? ' aria-current="page"' : ''}>${t}${n ? `<span class="n${k === 'questions' ? ' q' : ''}">${n}</span>` : ''}</a>`).join('');
@@ -421,16 +437,29 @@ function lessonView(L) {
   $('#view').innerHTML = h;
   // wire
   $('#bSm').onclick = () => setFs(pref.fs - 1); $('#bLg').onclick = () => setFs(pref.fs + 1);
-  $$('[data-show]').forEach(b => b.onclick = () => { pref.show[b.dataset.show] = !pref.show[b.dataset.show]; LS.set('show', pref.show); lessonView(L); });
-  $$('[data-sch]').forEach(b => b.onclick = () => { pref.focus = pref.focus === b.dataset.sch ? null : b.dataset.sch; lessonView(L); });
+  const rer = sel => { // keep the paragraph at the top of the screen where it was
+    const lim = ($('#top').getBoundingClientRect().bottom || 0) + 8; let anc = null, off = 0;
+    for (const r of $$('.row[data-b]')) { const t = r.getBoundingClientRect(); if (t.bottom > lim) { anc = r.dataset.b; off = t.top; break; } }
+    L.block = null; L.keep = true; lessonView(L); L.keep = false;
+    const el = anc && document.getElementById('r-' + anc);
+    if (el) { const fix = () => scrollBy(0, el.getBoundingClientRect().top - off); fix(); requestAnimationFrame(fix); }
+    const b = $(sel); if (b) b.focus({ preventScroll: true }); };
+  $$('[data-show]').forEach(b => b.onclick = () => { pref.show[b.dataset.show] = !pref.show[b.dataset.show]; LS.set('show', pref.show); rer(`[data-show="${b.dataset.show}"]`); });
+  $$('[data-sch]').forEach(b => b.onclick = () => { pref.focus = pref.focus === b.dataset.sch ? null : b.dataset.sch; rer(`[data-sch="${b.dataset.sch}"]`); });
   $('.desk').classList.toggle('sch-hide', !!pref.focus);
-  $$('.rail [data-list]').forEach(b => b.onclick = () => listPanel(b.dataset.list));
   annotateAll();
   if (isS || isC || isF) LS.set('last', { h: location.hash || hash(seg), code: d.code || d.label, title: (d.title || '').replace(/<[^>]+>/g, ''), notes: nn, q: nq, tc: ntc });
-  observe();
+  observe(); warmRows();
   if (AU.key === L.key) { const bl = $('#bListen'); if (bl) bl.setAttribute('aria-pressed', 'true'); if (AU.lastB) sayBlock(AU.lastB, true); }
   const t = L.block && document.getElementById('r-' + L.block);
-  if (t) { t.scrollIntoView({ block: 'start' }); focusRow(t); } else window.scrollTo(0, 0);
+  if (t) { t.scrollIntoView({ block: 'start' }); focusRow(t); } else if (!L.keep) window.scrollTo(0, 0);
+  if (L.ans && t) { const ans = L.ans; L.ans = null; history.replaceState(null, '', hash(seg, { b: L.block })); newNote(L.block, { quote: '', start: null, end: null, refs: '' }, ['answer:' + ans], true); }
+}
+const ric = window.requestIdleCallback || (f => setTimeout(() => f({ timeRemaining: () => 0 }), 60));
+function warmRows() {
+  const rows = $$('.row .txt'), g = routeGen; let i = 0;
+  const step = dl => { if (g !== routeGen) return; do { if (i >= rows.length) return; rows[i++].getBoundingClientRect(); } while (dl.timeRemaining() > 12); ric(step); };
+  ric(step);
 }
 function lesLink(L, n) {
   const b = L.course.babs.find(x => x.n === L.bab); const ls = b ? b.lessons.filter(l => l.L === n) : [];
@@ -507,12 +536,12 @@ function marksHTML(b) {
     ${hasSrc ? '<button type="button" class="mk src" data-act="src" aria-pressed="false">Source</button>' : ''}</div>
     ${m.move != null ? `<div class="mv">To: <input value="${esc(m.move)}" data-act="movein" placeholder="ZM B1 S12" aria-label="Move to"></div>` : ''}`;
 }
-function setMark(bid, f) {
-  const id = mkey(bid), old = S.notes.marks[id] || {}; const m = f(Object.assign({}, old));
+function setMark(bid, f, cur) {
+  cur = cur || S.cur; const id = cur.key + '|' + bid, old = S.notes.marks[id] || {}; const m = f(Object.assign({}, old));
   const live = m.verdict || m.key || m.bridge || m.move != null;
-  if (live) S.notes.marks[id] = Object.assign(m, { lesson: S.cur.key, code: S.cur.d.code || S.cur.d.label, block: bid, updated: new Date().toISOString() });
-  else delete S.notes.marks[id];
-  queueSave(); annotateAll();
+  if (live) S.notes.marks[id] = Object.assign(m, { lesson: cur.key, code: cur.d.code || cur.d.label, block: bid, updated: new Date().toISOString() });
+  else { delete S.notes.marks[id]; GONE.add(id); }
+  queueSave(); if (cur === S.cur) annotateAll(bid);
 }
 function unwrap(el) { $$('mark', el).forEach(m => m.replaceWith(...m.childNodes)); el.normalize(); }
 function textNodes(el) { const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); const a = []; while (w.nextNode()) a.push(w.currentNode); return a; }
@@ -524,9 +553,10 @@ function wrapRange(el, start, end, nid) {
     pos += len;
   }
 }
-function annotateAll() {
+function annotateAll(only) {
   if (!S.cur) return;
-  $$('.row[data-b]').forEach(row => {
+  const one = only && document.getElementById('r-' + only);
+  (one ? [one] : $$('.row[data-b]')).forEach(row => {
     const bid = row.dataset.b, txt = $('.txt', row), nl = $('.nl', row);
     unwrap(txt);
     const mine = Object.entries(S.notes.notes).filter(([, n]) => n.lesson === S.cur.key && n.block === bid);
@@ -535,7 +565,7 @@ function annotateAll() {
     row.classList.toggle('drop', m.verdict === 'drop'); row.classList.toggle('keep', m.verdict === 'keep');
     const mk = $('.marks', row);
     const b = (S.cur.d.items || []).find(x => x.id === bid);
-    if (mk && b && !(document.activeElement && row.contains(document.activeElement) && document.activeElement.matches('input'))) { const tmp = document.createElement('div'); tmp.innerHTML = marksHTML(b); mk.replaceWith(...tmp.childNodes); const mv = $$('.mv', row); if (mv.length > 1) mv.slice(0, -1).forEach(x => x.remove()); }
+    if (mk && b && !(document.activeElement && row.contains(document.activeElement) && document.activeElement.matches('input'))) { const tmp = document.createElement('div'); tmp.innerHTML = marksHTML(b); $$('.mv', row).forEach(x => x.parentNode.removeChild(x)); mk.replaceWith(...tmp.childNodes); }
     if (nl) renderMine(nl, mine);
     const seam = $(`.seam[data-b="${bid}"]`);
     if (seam) { seam.classList.toggle('on', !!m.bridge); const bb = $('.bb', seam); if (bb) bb.textContent = m.bridge ? 'A bridge is needed here' : 'Needs a bridge?'; }
@@ -549,14 +579,14 @@ function renderMine(nl, mine) {
     if (!c) { c = document.createElement('div'); c.className = 'mcard mine'; c.dataset.n = id;
       c.innerHTML = `<span class="mh"><span>My note</span><span>${esc((n.created || '').slice(0, 10))}</span></span>${n.quote ? `<q data-act="jump">${esc(n.quote)}</q>` : ''}<textarea data-act="text" rows="2" placeholder="Write here" aria-label="Note"></textarea><div class="tags"></div>`;
       nl.append(c); }
-    const ta = $('textarea', c); if (document.activeElement !== ta) ta.value = n.text || '';
-    $('.tags', c).innerHTML = Object.entries(TAGS).map(([t, l]) => `<button type="button" class="tag" data-act="tag" data-t="${t}" aria-pressed="${(n.tags || []).includes(t)}">${l}</button>`).join('') + '<button type="button" class="tag del" data-act="del">Delete</button>';
+    const ta = $('textarea', c); if (document.activeElement !== ta) { ta.value = n.text || ''; grow(ta); }
+    $('.tags', c).innerHTML = Object.entries(TAGS).map(([t, l]) => `<button type="button" class="tag" data-act="tag" data-t="${t}" aria-pressed="${(n.tags || []).includes(t)}">${l}</button>`).join('') + '<button type="button" class="tag del" data-act="del">' + (ARMED[id] > Date.now() ? 'Sure? Press again' : 'Delete') + '</button>';
   }
 }
 function newNote(bid, c, tags, focus) {
   const id = 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), now = new Date().toISOString();
   S.notes.notes[id] = { lesson: S.cur.key, code: S.cur.d.code || S.cur.d.label, block: bid, quote: c ? c.quote : '', start: c ? c.start : null, end: c ? c.end : null, refs: c ? c.refs : '', text: '', tags, created: now, updated: now };
-  queueSave(); annotateAll();
+  queueSave(); annotateAll(bid);
   if (focus) requestAnimationFrame(() => { const ta = $(`.mcard.mine[data-n="${id}"] textarea`); if (ta) ta.focus(); });
 }
 
@@ -603,6 +633,7 @@ document.addEventListener('selectionchange', () => { clearTimeout(selT); selT = 
 $('#selbar').addEventListener('mousedown', e => e.preventDefault());
 $('#selbar').addEventListener('click', e => {
   const a = e.target.closest('[data-sa]'); if (!a || !selCtx) return; const c = selCtx;
+  if (!document.contains(c.row)) { $('#selbar').hidden = true; return; }
   if (a.dataset.sa === 'src') toggleSrc(c.row, c.refs); else newNote(c.bid, c, a.dataset.sa === 'note' ? [] : [a.dataset.sa], a.dataset.sa === 'note');
   getSelection().removeAllRanges(); $('#selbar').hidden = true;
 });
@@ -613,7 +644,7 @@ document.addEventListener('click', e => {
   if (act) {
     const a = act.dataset.act;
     if (a === 'more') { act.closest('.mcard').classList.remove('clip'); act.remove(); return; }
-    if (a === 'answer') { const r = act.closest('.row[data-b]'); newNote(r ? r.dataset.b : 'b0', { quote: '', start: null, end: null, refs: '' }, ['answer:' + act.dataset.q], true); return; }
+    if (a === 'answer') { const r = act.closest('.row[data-b]'); if (!r) { const it = (S.cur.d.items || []), qi = it.findIndex(x => x.qid === act.dataset.q); let b = 'b0'; for (let k = qi; k >= 0; k--) if (!SIDE_T.includes(it[k].t)) { b = it[k].id; break; } go(parse().seg, { b, ans: act.dataset.q }); return; } newNote(r ? r.dataset.b : 'b0', { quote: '', start: null, end: null, refs: '' }, ['answer:' + act.dataset.q], true); return; }
     if (a === 'bridge') { setMark(act.closest('.seam').dataset.b, m => Object.assign(m, { bridge: !m.bridge })); return; }
     if (a === 'full') { const ps = act.closest('.ps'); const set = new Set(act.dataset.set.split(',').map(Number)); ps.outerHTML = srcPassage(act.dataset.p, set, act.dataset.full !== '1'); return; }
     if (!row) return;
@@ -624,10 +655,11 @@ document.addEventListener('click', e => {
     if (a === 'note') return newNote(bid, null, [], true);
     if (a === 'src') { const on = toggleSrc(row); act.setAttribute('aria-pressed', on ? 'true' : 'false'); return; }
     const card = act.closest('.mcard.mine'); if (!card) return; const id = card.dataset.n, n = S.notes.notes[id]; if (!n) return;
-    if (a === 'tag') { const t = act.dataset.t, tags = new Set(n.tags || []); tags.has(t) ? tags.delete(t) : tags.add(t); n.tags = [...tags]; n.updated = new Date().toISOString(); queueSave(); annotateAll(); return; }
-    if (a === 'del') { if (card.dataset.confirm) { delete S.notes.notes[id]; queueSave(); annotateAll(); } else { card.dataset.confirm = 1; act.textContent = 'Sure? Press again'; setTimeout(() => { delete card.dataset.confirm; act.textContent = 'Delete'; }, 3000); } return; }
+    if (a === 'tag') { const t = act.dataset.t, tags = new Set(n.tags || []); tags.has(t) ? tags.delete(t) : tags.add(t); n.tags = [...tags]; n.updated = new Date().toISOString(); queueSave(); annotateAll(n.block); return; }
+    if (a === 'del') { if (ARMED[id] > Date.now()) { delete S.notes.notes[id]; delete ARMED[id]; GONE.add(id); queueSave(); annotateAll(n.block); } else { ARMED[id] = Date.now() + 3000; act.textContent = 'Sure? Press again'; setTimeout(() => { delete ARMED[id]; const c = $(`.mcard.mine[data-n="${id}"] .del`); if (c) c.textContent = 'Delete'; }, 3000); } return; }
     if (a === 'jump') { litNote(id); return; }
   }
+  const lr = e.target.closest('.li[data-href]'); if (lr && !e.target.closest('a')) { location.hash = lr.dataset.href; return; }
   const mk = e.target.closest('mark[data-n]'); if (mk) { litNote(mk.dataset.n); return; }
   const s = e.target.closest('.s');
   if (s && getSelection().isCollapsed) {
@@ -644,12 +676,15 @@ document.addEventListener('mouseover', e => {
   $$('.s', row).forEach(s => { if (parseRefs(s.dataset.r).some(r => r.p === pid && k >= r.a && k <= r.b)) s.classList.add('lit'); });
 });
 function litNote(id) { $$('mark.on,.mcard.mine.on').forEach(x => x.classList.remove('on')); $$(`mark[data-n="${id}"]`).forEach(x => x.classList.add('on')); const c = $(`.mcard.mine[data-n="${id}"]`); if (c) c.classList.add('on'); }
-const typeT = {};
+const typeT = {}, ARMED = {};
+const grow = ta => { if (CSS.supports && CSS.supports('field-sizing', 'content')) return; ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + 2, innerHeight * 0.6) + 'px'; };
+document.addEventListener('keydown', e => { const l = e.target.closest && e.target.closest('.li[data-href]'); if (l && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); location.hash = l.dataset.href; } });
+document.addEventListener('click', e => { const b = e.target.closest('.rail [data-list]'); if (b && S.cur) { closeDrawer(); listPanel(b.dataset.list); } });
 document.addEventListener('input', e => {
   const ta = e.target.closest('textarea[data-act=text]');
-  if (ta) { const id = ta.closest('.mcard').dataset.n; clearTimeout(typeT[id]); typeT[id] = setTimeout(() => { const n = S.notes.notes[id]; if (n && n.text !== ta.value) { n.text = ta.value; n.updated = new Date().toISOString(); queueSave(); } }, 600); return; }
+  if (ta) { grow(ta); const id = ta.closest('.mcard').dataset.n; clearTimeout(typeT[id]); const n = S.notes.notes[id]; if (n && n.text !== ta.value) { n.text = ta.value; n.updated = new Date().toISOString(); typeT[id] = setTimeout(queueSave, 400); } return; }
   const mv = e.target.closest('input[data-act=movein]');
-  if (mv) { const bid = mv.closest('.row').dataset.b; clearTimeout(typeT.mv); typeT.mv = setTimeout(() => setMark(bid, m => Object.assign(m, { move: mv.value.trim() })), 700); }
+  if (mv) { const bid = mv.closest('.row').dataset.b, cur = S.cur, k = 'mv' + cur.key + bid; clearTimeout(typeT[k]); typeT[k] = setTimeout(() => setMark(bid, m => Object.assign(m, { move: mv.value.trim() }), cur), 700); }
 });
 
 /* ---------- position, dock, panels, keys ---------- */
@@ -683,7 +718,7 @@ function audioEl() {
   }
   return a;
 }
-function savePos() { if (!AU.key || !AU.el || !AU.map) return; AU.savedAt = AU.el.currentTime; AU.pos[AU.key] = Math.floor(AU.el.currentTime); LS.set('apos', AU.pos); }
+function savePos() { if (!AU.key || !AU.el || !AU.map || AU.el.ended) return; AU.savedAt = AU.el.currentTime; AU.pos[AU.key] = Math.floor(AU.el.currentTime); LS.set('apos', AU.pos); }
 function segAt(t) { // segments are in time order: binary search for the last one that started
   const sg = AU.map.seg; let lo = 0, hi = sg.length - 1, f = null;
   while (lo <= hi) { const m = (lo + hi) >> 1; if (sg[m][0] <= t) { f = sg[m]; lo = m + 1; } else hi = m - 1; }
@@ -747,6 +782,7 @@ async function openPlayer() {
     AU.map = map; msg.textContent = '';
     a.playbackRate = +LS.get('rate', 1);
     $$('#player button, #player input').forEach(x => { x.disabled = false; });
+    const sk = $('#aSeek'); if (sk) sk.max = a.duration || map.dur || 1;
     const at = AU.pos[key] || 0;
     if (at > 5) { a.currentTime = Math.max(0, at - 3); msg.textContent = `Carrying on from ${fmtT(at - 3)}, where you stopped.`; setTimeout(() => { if (gen === AU.gen && /^Carrying/.test(msg.textContent)) msg.textContent = ''; }, 4000); }
     else a.currentTime = 0;
@@ -754,7 +790,8 @@ async function openPlayer() {
     await a.play().catch(() => { if (gen === AU.gen) msg.textContent = 'Press Play to start.'; });
   } catch (e) {
     if (gen !== AU.gen || e.name === 'AbortError') return;
-    msg.textContent = 'The audio could not be loaded: ' + e.message;
+    msg.textContent = 'The audio could not be loaded: ' + e.message + '. Press Listen to try again.';
+    AU.key = null; AU.ctl = null;
   }
 }
 function wirePlayer(a) {
@@ -781,14 +818,20 @@ function observe() {
   const links = $$('.desk>.rail a[data-b]');
   const show = i => { curSec = i; const r = hs[i]; if (!r) return; links.forEach(l => l.classList.toggle('on', l.dataset.b === r.dataset.b));
     const now = $('#now'); if (now) now.innerHTML = `<span class="ui ltr">Section ${i + 1} of ${hs.length}</span><span class="t">${esc($('.txt', r).textContent.trim())}</span>`; };
-  io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) show(hs.indexOf(e.target)); }), { rootMargin: '-130px 0px -65% 0px' });
-  hs.forEach(h => io.observe(h));
+  let raf = 0, lastI = -2;
+  const spy = () => { raf = 0; if (!hs.length || !hs[0].isConnected) return; const tb = $('#top'), lim = (tb && getComputedStyle(tb).position !== 'static' ? tb.getBoundingClientRect().bottom : 0) + 140; let i = -1; for (let k = 0; k < hs.length; k++) { if (hs[k].getBoundingClientRect().top <= lim) i = k; else break; } if (i !== lastI) { lastI = i; if (i >= 0) show(i); else { curSec = -1; links.forEach(l => l.classList.remove('on')); const nw = $('#now'); if (nw) nw.innerHTML = `<span class="ui ltr">${hs.length} sections</span>`; } } };
+  if (observe.off) observe.off();
+  const onS = () => { if (!raf) raf = requestAnimationFrame(spy); }; addEventListener('scroll', onS, { passive: true }); observe.off = () => removeEventListener('scroll', onS);
   const now = $('#now'); if (now) now.innerHTML = hs.length ? `<span class="ui ltr">${hs.length} sections</span>` : '';
-  const step = d => { const i = Math.max(0, Math.min(hs.length - 1, curSec + d)); if (hs[i]) { hs[i].scrollIntoView({ block: 'start' }); show(i); } };
+  const dp = $('#dPrev'), dn = $('#dNext'); if (dp) dp.disabled = !hs.length; if (dn) dn.disabled = !hs.length;
+  requestAnimationFrame(spy);
+  const step = d => { const i = Math.max(0, Math.min(hs.length - 1, curSec + d)); if (hs[i]) { hs[i].scrollIntoView({ block: 'start' }); lastI = i; show(i); } };
   const p = $('#dPrev'), n = $('#dNext'); if (p) p.onclick = () => step(-1); if (n) n.onclick = () => step(1);
   observe.step = step;
 }
 addEventListener('keydown', e => {
+  if (e.key === 'Escape') { const o = $$('.over'); if ($('#drawer') || o.length) { closeDrawer(); o.forEach(x => x.parentNode.removeChild(x)); return; } }
+  if (e.key === ' ' && AU.map && AU.key && !e.target.closest('input,textarea,select,button,[contenteditable]')) { e.preventDefault(); if (AU.el.paused) AU.el.play().catch(() => {}); else AU.el.pause(); return; }
   if (e.target.closest('input,textarea,select,[contenteditable]') || e.ctrlKey || e.metaKey || e.altKey || !S.cur || !$('.desk')) return;
   if (e.key === 'ArrowLeft') { e.preventDefault(); observe.step && observe.step(1); }
   if (e.key === 'ArrowRight') { e.preventDefault(); observe.step && observe.step(-1); }
@@ -810,14 +853,17 @@ function listPanel(kind) {
 }
 
 /* ---------- my notes, across everything ---------- */
-async function myNotes() {
+async function myNotes(live) {
   topBar({ crumbs: [{ t: 'My notes', ui: 1 }] });
   const q = parse().q;
   if (q.get('v') === 'q') {
     const c = S.index.courses.find(x => x.id === q.get('c')) || S.index.courses[0];
     let h = `<div class="page" style="max-width:1000px"><div class="shead"><h2>${c.code}: every open question</h2><span>Grouped by sabaq; open one to read it in place</span></div>`;
-    for (const b of c.babs) for (const s of b.sabaq.filter(x => x.q)) {
-      const d = await data(`${c.id}/B${b.n}/S${String(s.n).padStart(2, '0')}.json`);
+    const list = c.babs.flatMap(b => b.sabaq.filter(x => x.q).map(s => ({ b, s })));
+    $('#view').innerHTML = '<div class="loading">Loading every open question</div>';
+    const ds = await Promise.all(list.map(({ b, s }) => data(`${c.id}/B${b.n}/S${String(s.n).padStart(2, '0')}.json`))); if (live && !live()) return;
+    for (const [k, { b, s }] of list.entries()) {
+      const d = ds[k];
       h += `<div class="panel"><h3><a href="#${c.id}/${b.n}/${s.n}?t=questions">${c.code} B${b.n} S${s.n}</a> · ${s.q}</h3>${d.items.filter(i => i.t === 'q').map(i => `<a class="rowlink" href="#${c.id}/${b.n}/${s.n}?t=questions"><span>${esc(i.qid)} · ${esc(i.title)}</span></a>`).join('')}</div>`;
     }
     $('#view').innerHTML = h + '</div>'; return;
@@ -826,7 +872,7 @@ async function myNotes() {
   const ms = Object.entries(S.notes.marks).filter(([, m]) => m.verdict || m.key || m.bridge || m.move != null);
   const link = x => { const [a, b, c] = x.lesson.split('/'); const n = /^S\d+$/.test(c) ? +c.slice(1) : c; return `#${a}/${b.slice(1)}/${n}?b=${x.block}`; };
   $('#view').innerHTML = `<div class="page" style="max-width:1000px"><div class="shead"><h2>My notes</h2><span>${ns.length} notes, ${ms.length} marked blocks · saved in hub-notes (notes.json)</span></div>
-    <div class="list">${ns.map(([, n]) => `<a class="li" href="${link(n)}"><span class="n">${esc(n.code || '')}</span><span class="t">${n.quote ? `<q style="color:var(--faint);font-size:15px">${esc(n.quote)}</q><br>` : ''}<span style="unicode-bidi:plaintext">${esc(n.text || '(empty)')}</span></span><span class="meta">${(n.tags || []).map(t => `<span class="pill off">${esc(TAGS[t] || t)}</span>`).join('')}</span></a>`).join('') || '<p class="ui muted" style="padding:16px 22px">No notes yet. Select text in any lesson to write one.</p>'}</div>
+    <div class="list">${ns.map(([, n]) => `<a class="li" href="${link(n)}"><span class="n">${esc(n.code || '')}</span><span class="t">${n.quote ? `<q style="color:var(--faint);font-size:15px">${esc(n.quote)}</q><br>` : ''}<span dir="auto" style="display:block;text-align:start">${esc(n.text || '(empty note)')}</span></span><span class="meta">${(n.tags || []).map(t => `<span class="pill off">${esc(TAGS[t] || (/^answer:/.test(t) ? 'Answer to ' + t.slice(7) : t))}</span>`).join('')}</span></a>`).join('') || '<p class="ui muted" style="padding:16px 22px">No notes yet. Select text in any lesson to write one.</p>'}</div>
     <div class="shead"><h2>Marked blocks</h2><span>Keep, Drop, Maybe, Key, Move, Needs a bridge</span></div>
     <div class="list">${ms.map(([, m]) => `<a class="li" href="${link(m)}"><span class="n">${esc(m.code || '')}</span><span class="t ui" style="font-size:13px;direction:ltr;text-align:right">${esc(m.block)}${m.move ? ' → ' + esc(m.move) : ''}</span><span class="meta">${[m.verdict, m.key && 'key', m.bridge && 'bridge', m.move != null && 'move'].filter(Boolean).map(t => `<span class="pill off">${esc(TAGS[t] || t)}</span>`).join('')}</span></a>`).join('') || '<p class="ui muted" style="padding:16px 22px">Nothing marked yet.</p>'}</div></div>`;
 }

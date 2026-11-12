@@ -9,7 +9,7 @@
   --MM:#a51d2d; --AH:#2c7a35; --JS:#b45309; --EZ:#6b2a9a;
   --MM-t:#8a1826; --AH-t:#1f5a27; --JS-t:#8a4007; --EZ-t:#4a2170;
   --MM-w:#fbe6e8; --AH-w:#e5f2e6; --JS-w:#fbecdc; --EZ-w:#f0e6f7; --several:#5c5c5c;
-  --note:#2d4f86; --note-w:#f0f4fb; --q:#b4382a; --q-w:#fff7f4; --q-line:#e9b4a8; --tc:#6b5a2e; --tc-w:#fbf8ee; --tc-line:#c7b98f;
+  --note:#2d4f86; --note-w:#f0f4fb; --q:#b4382a; --q-w:#fff7f4; --q-pill:#fbe2dc; --q-line:#e9b4a8; --tc:#6b5a2e; --tc-w:#fbf8ee; --tc-line:#c7b98f;
   --gold:#d99a1e; --gold-ink:#7a4f00; --gold-w:#fbf1dc; --hl:#fde58a; --hl-on:#f6c945; --atlas:#2a5bb8; --atlas-w:#eaf0fb;
   --shadow:0 1px 2px rgba(29,33,31,.05),0 12px 32px rgba(29,33,31,.06); --shadow-s:0 1px 3px rgba(29,33,31,.07);
   --ur:Gulzar,"Noto Nastaliq Urdu","Jameel Noori Nastaleeq",serif; --ur-h:"Noto Nastaliq Urdu",serif;
@@ -21,7 +21,7 @@
   --accent:#7fcac2; --accent-2:#7fcac2; --accent-w:#1d3330; --glow:#7fcac2;
   --MM:#ff8a80; --AH:#7fd187; --JS:#ffb35c; --EZ:#d3a4f5; --MM-t:#ffb3ab; --AH-t:#a7e3ad; --JS-t:#ffcb8f; --EZ-t:#e2c4f8;
   --MM-w:#36201e; --AH-w:#1c2f1e; --JS-w:#34281b; --EZ-w:#2d2236; --several:#b0b0b0;
-  --note:#a9c1ee; --note-w:#1e2738; --q:#ff9a88; --q-w:#33201c; --q-line:#6b3a31; --tc:#dcc58f; --tc-w:#2a261b; --tc-line:#6b5f3e;
+  --note:#a9c1ee; --note-w:#1e2738; --q:#ff9a88; --q-w:#33201c; --q-pill:#4a2a24; --q-line:#6b3a31; --tc:#dcc58f; --tc-w:#2a261b; --tc-line:#6b5f3e;
   --gold:#e8b44a; --gold-ink:#f0c870; --gold-w:#3a2f12; --hl:#6b5a12; --hl-on:#8f7614; --atlas:#9db8ff; --atlas-w:#1f2a40;
   --shadow:0 1px 2px rgba(0,0,0,.3); --shadow-s:0 1px 2px rgba(0,0,0,.3); color-scheme:dark}}
 :root[data-theme="dark"]{
@@ -29,7 +29,7 @@
   --accent:#7fcac2; --accent-2:#7fcac2; --accent-w:#1d3330; --glow:#7fcac2;
   --MM:#ff8a80; --AH:#7fd187; --JS:#ffb35c; --EZ:#d3a4f5; --MM-t:#ffb3ab; --AH-t:#a7e3ad; --JS-t:#ffcb8f; --EZ-t:#e2c4f8;
   --MM-w:#36201e; --AH-w:#1c2f1e; --JS-w:#34281b; --EZ-w:#2d2236; --several:#b0b0b0;
-  --note:#a9c1ee; --note-w:#1e2738; --q:#ff9a88; --q-w:#33201c; --q-line:#6b3a31; --tc:#dcc58f; --tc-w:#2a261b; --tc-line:#6b5f3e;
+  --note:#a9c1ee; --note-w:#1e2738; --q:#ff9a88; --q-w:#33201c; --q-pill:#4a2a24; --q-line:#6b3a31; --tc:#dcc58f; --tc-w:#2a261b; --tc-line:#6b5f3e;
   --gold:#e8b44a; --gold-ink:#f0c870; --gold-w:#3a2f12; --hl:#6b5a12; --hl-on:#8f7614; --atlas:#9db8ff; --atlas-w:#1f2a40;
   --shadow:0 1px 2px rgba(0,0,0,.3); --shadow-s:0 1px 2px rgba(0,0,0,.3); color-scheme:dark}
 
@@ -83,7 +83,7 @@ a{color:var(--accent);text-underline-offset:3px}
 .tabs a{font-family:var(--ui);font-size:13px;font-weight:500;border-radius:9px;padding:0 12px;min-height:34px;display:flex;align-items:center;gap:6px;text-decoration:none;color:var(--soft)}
 .tabs a[aria-current]{background:var(--paper);color:var(--ink);box-shadow:var(--shadow-s);font-weight:700}
 .tabs .n{font-size:11px;font-weight:700;border-radius:6px;padding:1px 6px;background:var(--rule-2);color:var(--soft)}
-.tabs .n.q{background:#fbe2dc;color:var(--q)}
+.tabs .n.q{background:var(--q-pill);color:var(--q)}
 .schf{display:flex;gap:6px;flex-wrap:wrap;direction:ltr}
 .schf button{font-family:var(--ui);font-size:12px;font-weight:600;border:1.5px solid var(--c);color:var(--c);background:transparent;border-radius:999px;padding:0 11px;min-height:32px;display:flex;align-items:center;gap:6px}
 .schf button .dot{background:var(--c)}
@@ -133,7 +133,7 @@ a.card:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(29,33,31,.1)}
 .li.off{color:var(--faint)}
 .li.off .n{color:var(--faint)}
 .pill{font-family:var(--ui);font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 7px;white-space:nowrap}
-.pill.note{background:var(--note-w);color:var(--note)} .pill.q{background:#fbe2dc;color:var(--q)} .pill.tc{background:var(--tc-w);color:var(--tc)}
+.pill.note{background:var(--note-w);color:var(--note)} .pill.q{background:var(--q-pill);color:var(--q)} .pill.tc{background:var(--tc-w);color:var(--tc)}
 .pill.l{background:var(--gold);color:#1d1405} .pill.lp{background:var(--gold-w);color:var(--gold-ink)} .pill.s{background:var(--accent-w);color:var(--accent)} .pill.f{background:var(--atlas-w);color:var(--atlas)}
 .pill.off{background:var(--rule-2);color:var(--faint)}
 
@@ -379,3 +379,32 @@ body.has-player main.read{padding-bottom:220px}
   .li .meta{grid-column:2}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+
+/* stress-test fixes, 2026-11-12 */
+.selbar,.toast{left:12px;right:12px;margin-inline:auto;width:fit-content;max-width:calc(100vw - 24px);transform:none}
+.toast{bottom:calc(140px + env(safe-area-inset-bottom,0px))}
+body.has-player .selbar{bottom:calc(136px + env(safe-area-inset-bottom,0px))}
+body.has-player .toast{bottom:calc(200px + env(safe-area-inset-bottom,0px))}
+.tocbtn[hidden]{display:none!important}
+.files a svg{width:16px;height:16px;flex:none}
+.doc .md h1,.doc .md h2,.doc .md h3,.doc .md h4{unicode-bidi:plaintext;text-align:start}
+.mcard textarea{field-sizing:content;max-height:60vh;overflow:auto}
+.dock-in .listen[aria-pressed="true"]{background:var(--hl-on);color:#1d211f}
+.drawer .dclose{position:absolute;top:10px;left:10px;z-index:2}
+:root[data-theme="dark"] .dock-in{background:#2b3431;border:1px solid #46514d}
+:root[data-theme="dark"] .marks{opacity:.55}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dock-in{background:#2b3431;border:1px solid #46514d} :root:not([data-theme="light"]) .marks{opacity:.55}}
+@media (max-width:900px){
+  .mk,.tag,.selbar button,.player button,.player select{min-height:40px}
+  .more,.bb{min-height:40px;padding-inline:8px}
+  body.has-player .selbar{bottom:calc(190px + env(safe-area-inset-bottom,0px))}
+}
+@media (max-width:640px){
+  .player #aBack,.player #aFwd,.player #aFollow{display:none}
+  .player{gap:4px;padding:6px 8px}
+  body.has-player .toast{bottom:calc(250px + env(safe-area-inset-bottom,0px))}
+}
+
+/* speed: lay out only what is near the screen (Nastaliq layout is the main cost) */
+.row{content-visibility:auto;contain-intrinsic-size:auto 260px}
+.omitted>p,.doc .md>*{content-visibility:auto;contain-intrinsic-size:auto 90px}
