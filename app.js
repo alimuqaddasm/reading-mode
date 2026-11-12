@@ -1,11 +1,11 @@
-/* Reading Mode. Reads reading/ from the private hub repo with the viewer's own GitHub key (the same key the Work Map
-   uses; both sites share this origin). Marks and notes are written to reading/notes.json in the hub, so later Claude
-   sessions can read them. Address: #zm/1/9 (hub sabaq), #zm/1/L02 (class lesson), #zm/papers/3, #mahdaviyat/15/U15.11
+/* Reading Mode. Reads reading/ from the private repo hub-data with the viewer's own GitHub key (the same key the
+   Work Map uses; both sites share this origin; it covers hub-data and hub-notes, never the hub). Marks and notes are
+   written to notes.json in hub-notes, so later Claude sessions can read them. Address: #zm/1/9 (hub sabaq), #zm/1/L02 (class lesson), #zm/papers/3, #mahdaviyat/15/U15.11
    (atlas Fasl lesson), #mahdaviyat/15/atlas, #notes. ?t= picks a tab, ?b= a block. */
 (function () {
 'use strict';
-const OWNER = 'alimuqaddasm', HUB = 'hub', KEY = 'workmap.key', WM = 'https://alimuqaddasm.github.io/workmap/';
-const API = `https://api.github.com/repos/${OWNER}/${HUB}/contents/`;
+const OWNER = 'alimuqaddasm', DATA = 'hub-data', NOTES = 'hub-notes', KEY = 'workmap.key', WM = 'https://alimuqaddasm.github.io/workmap/';
+const API = repo => `https://api.github.com/repos/${OWNER}/${repo}/contents/`;
 const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => [...(r || document).querySelectorAll(s)];
 const esc = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const UD = n => String(n).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
@@ -34,16 +34,16 @@ const ICON = {
 /* ---------- GitHub ---------- */
 const b64enc = s => { const b = new TextEncoder().encode(s); let o = ''; for (let i = 0; i < b.length; i += 0x8000) o += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(o); };
 const b64dec = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\n/g, '')), c => c.charCodeAt(0)));
-async function gh(path, opts, raw) {
+async function gh(path, opts, raw, repo) {
   let r;
   const headers = { Authorization: 'Bearer ' + getKey(), Accept: raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
-  try { r = await fetch(API + path, Object.assign({ headers, cache: 'no-cache' }, opts || {})); }
+  try { r = await fetch(API(repo || NOTES) + path, Object.assign({ headers, cache: 'no-cache' }, opts || {})); }
   catch (e) { const er = new Error('GitHub could not be reached. Check your connection.'); er.status = 0; throw er; }
-  if (!r.ok) { const e = new Error(r.status === 401 ? 'GitHub refused the key. It may have expired or been revoked.' : r.status === 404 ? `Not found in the hub: ${path}` : `GitHub answered ${r.status}.`); e.status = r.status; throw e; }
+  if (!r.ok) { const e = new Error(r.status === 401 ? 'GitHub refused the key. It may have expired or been revoked.' : r.status === 404 ? `Not found, or this key cannot open it: ${path}` : `GitHub answered ${r.status}.`); e.status = r.status; throw e; }
   return raw ? r.text() : r.json();
 }
 const cache = {};
-async function data(rel) { return cache[rel] || (cache[rel] = JSON.parse(await gh('reading/' + rel, null, true))); }
+async function data(rel) { return cache[rel] || (cache[rel] = JSON.parse(await gh('reading/' + rel, null, true, DATA))); }
 
 /* ---------- state ---------- */
 const S = { index: null, notes: { notes: {}, marks: {} }, notesSha: null, cur: null, key: '', curBlock: null, wmBase: WM };
@@ -56,11 +56,11 @@ async function load() {
   screen('loading');
   try {
     S.index = await data('index.json');
-    try { const j = await gh('reading/notes.json'); S.notes = JSON.parse(b64dec(j.content)); S.notesSha = j.sha; S.notes.notes = S.notes.notes || {}; S.notes.marks = S.notes.marks || {}; }
+    try { const j = await gh('notes.json'); S.notes = JSON.parse(b64dec(j.content)); S.notesSha = j.sha; S.notes.notes = S.notes.notes || {}; S.notes.marks = S.notes.marks || {}; }
     catch (e) { if (e.status !== 404) throw e; }
     route();
   } catch (e) {
-    if (e.status === 401) { setKey(''); connect(e.message); return; }
+    if (e.status === 401 || e.status === 404) { setKey(''); connect(e.status === 404 ? 'This key cannot open hub-data and hub-notes. Make a key for those two repos (steps above) and paste it here.' : e.message); return; }
     $('#failmsg').textContent = e.message || String(e); screen('fail');
   }
 }
@@ -76,17 +76,17 @@ function queueSave() { dirty = true; setSave('Saving'); clearTimeout(saveT); sav
 async function flush() {
   if (saving || !dirty) return; saving = true; dirty = false;
   const body = sha => JSON.stringify({ message: 'Reading Mode: notes and marks', content: b64enc(JSON.stringify(S.notes, null, 1) + '\n'), sha: sha || undefined, branch: 'main' });
-  const put = sha => gh('reading/notes.json', { method: 'PUT', headers: { Authorization: 'Bearer ' + getKey(), Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, body: body(sha) });
+  const put = sha => gh('notes.json', { method: 'PUT', headers: { Authorization: 'Bearer ' + getKey(), Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, body: body(sha) });
   try {
     let r;
     try { r = await put(S.notesSha); }
     catch (e) {
       if (e.status !== 409 && e.status !== 422) throw e;
-      const j = await gh('reading/notes.json'); const theirs = JSON.parse(b64dec(j.content));
+      const j = await gh('notes.json'); const theirs = JSON.parse(b64dec(j.content));
       for (const k of ['notes', 'marks']) for (const [id, v] of Object.entries(theirs[k] || {})) { const mine = S.notes[k][id]; if (!mine || (v.updated || '') > (mine.updated || '')) S.notes[k][id] = v; }
       r = await put(j.sha);
     }
-    S.notesSha = r.content.sha; setSave('Saved to the hub');
+    S.notesSha = r.content.sha; setSave('Saved');
   } catch (e) {
     dirty = true; setSave(e.status === 403 || e.status === 404 ? 'Not saved: the key can read but not write' : 'Not saved, will retry');
     if (e.status !== 403) setTimeout(flush, 15000);
@@ -144,9 +144,11 @@ function topBar(o) {
     <a class="brand" href="#"><span class="mk">${ICON.book}</span>Reading Mode</a><nav class="crumb" aria-label="Where you are">${crumbs}</nav>
     ${o.chain || ''}<span class="tools"><span class="save" id="save"></span>
     <a class="btn" href="${esc(wm)}">${ICON.wm}Work Map</a>
-    <button type="button" class="btn icon" id="bTheme" aria-label="Dark or light">${ICON.moon}</button></span></div>`;
+    <button type="button" class="btn icon" id="bTheme" aria-label="Dark or light">${ICON.moon}</button>
+    <button type="button" class="btn" id="bForget" title="Remove your key from this browser">Forget key</button></span></div>`;
   if (o.second) h += `<div class="top2">${o.second}</div>`;
   $('#top').innerHTML = h;
+  $('#bForget').onclick = () => { if (dirty || saving) { toast('Wait a moment: your last note is still saving.'); return; } setKey(''); S.index = null; connect('Your key was removed from this browser.'); };
   $('#bTheme').onclick = () => { const r = document.documentElement; const dark = r.dataset.theme === 'dark' || (!r.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches); r.dataset.theme = dark ? 'light' : 'dark'; LS.set('theme', r.dataset.theme); };
   const tb = $('#bToc'); if (o.rail) tb.onclick = openDrawer; else tb.hidden = true;
 }
@@ -190,7 +192,7 @@ function library() {
   h += `</div></section><section class="grid">`;
   h += `<div class="panel"><h3>Waiting on you</h3>${S.index.courses.flatMap(c => c.babs.map(b => ({ c, b, q: b.sabaq.reduce((n, s) => n + s.q, 0) }))).filter(x => x.q).map(x => `<a class="rowlink" href="#notes?v=q&c=${x.c.id}"><span>${x.c.code} B${x.b.n}: open questions</span><b>${x.q}</b></a>`).join('') || '<p class="ui muted">Nothing open.</p>'}</div>`;
   const mine = Object.keys(S.notes.notes).length, mk = Object.values(S.notes.marks).filter(m => m.verdict || m.key || m.bridge || m.move != null).length;
-  h += `<div class="panel"><h3>My notes</h3><p class="ui" style="direction:ltr;text-align:right;margin:0;font-size:14px;color:var(--soft)">Your marks and notes are saved in the hub (reading/notes.json), so the next Claude session can read them.</p>
+  h += `<div class="panel"><h3>My notes</h3><p class="ui" style="direction:ltr;text-align:right;margin:0;font-size:14px;color:var(--soft)">Your marks and notes are saved in the private repo hub-notes (notes.json), so the next Claude session can read them.</p>
     <a class="rowlink" href="#notes"><span>${mine} notes, ${mk} marked blocks</span><b style="color:var(--accent)">Open</b></a></div></section>
     <p class="ui muted" style="direction:ltr;text-align:right;font-size:12px">Built from the repos ${esc(S.index.made)}. Pilot: ZM B1 and Mahdaviyat B15.</p></div>`;
   $('#view').innerHTML = h;
@@ -700,7 +702,7 @@ async function myNotes() {
   const ns = Object.entries(S.notes.notes).sort((a, b) => (b[1].updated || '').localeCompare(a[1].updated || ''));
   const ms = Object.entries(S.notes.marks).filter(([, m]) => m.verdict || m.key || m.bridge || m.move != null);
   const link = x => { const [a, b, c] = x.lesson.split('/'); const n = /^S\d+$/.test(c) ? +c.slice(1) : c; return `#${a}/${b.slice(1)}/${n}?b=${x.block}`; };
-  $('#view').innerHTML = `<div class="page" style="max-width:1000px"><div class="shead"><h2>My notes</h2><span>${ns.length} notes, ${ms.length} marked blocks · saved in the hub at reading/notes.json</span></div>
+  $('#view').innerHTML = `<div class="page" style="max-width:1000px"><div class="shead"><h2>My notes</h2><span>${ns.length} notes, ${ms.length} marked blocks · saved in hub-notes (notes.json)</span></div>
     <div class="list">${ns.map(([, n]) => `<a class="li" href="${link(n)}"><span class="n">${esc(n.code || '')}</span><span class="t">${n.quote ? `<q style="color:var(--faint);font-size:15px">${esc(n.quote)}</q><br>` : ''}<span style="unicode-bidi:plaintext">${esc(n.text || '(empty)')}</span></span><span class="meta">${(n.tags || []).map(t => `<span class="pill off">${esc(TAGS[t] || t)}</span>`).join('')}</span></a>`).join('') || '<p class="ui muted" style="padding:16px 22px">No notes yet. Select text in any lesson to write one.</p>'}</div>
     <div class="shead"><h2>Marked blocks</h2><span>Keep, Drop, Maybe, Key, Move, Needs a bridge</span></div>
     <div class="list">${ms.map(([, m]) => `<a class="li" href="${link(m)}"><span class="n">${esc(m.code || '')}</span><span class="t ui" style="font-size:13px;direction:ltr;text-align:right">${esc(m.block)}${m.move ? ' → ' + esc(m.move) : ''}</span><span class="meta">${[m.verdict, m.key && 'key', m.bridge && 'bridge', m.move != null && 'move'].filter(Boolean).map(t => `<span class="pill off">${esc(TAGS[t] || t)}</span>`).join('')}</span></a>`).join('') || '<p class="ui muted" style="padding:16px 22px">Nothing marked yet.</p>'}</div></div>`;
