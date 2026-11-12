@@ -1,0 +1,38 @@
+/* Bab 1 planning menu, in Reading Mode's look: contents rail, one paper page, tables scroll in their own frame */
+:root{--ground:#eef0ec;--paper:#fffdf8;--paper-2:#f5f4ee;--ink:#1d211f;--soft:#4f5753;--faint:#6b736f;--rule:#e3e1d8;--wash:#f3f2ec;--accent:#0b5f57;--accent-w:#e3f2ef;--gold-ink:#7a4f00;--gold-w:#fbf1dc;
+--ur:Gulzar,"Noto Nastaliq Urdu",serif;--ar:Amiri,"Noto Naskh Arabic",serif;--ui:Geist,system-ui,-apple-system,"Segoe UI",sans-serif;--fs:17px;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ground:#121715;--paper:#1a201e;--paper-2:#20272a;--ink:#e8ede9;--soft:#bcc5c1;--faint:#98a29e;--rule:#323b38;--wash:#232a28;--accent:#7fcac2;--accent-w:#1d3330;--gold-ink:#f0c870;--gold-w:#3a2f12;color-scheme:dark}}
+:root[data-theme="dark"]{--ground:#121715;--paper:#1a201e;--paper-2:#20272a;--ink:#e8ede9;--soft:#bcc5c1;--faint:#98a29e;--rule:#323b38;--wash:#232a28;--accent:#7fcac2;--accent-w:#1d3330;--gold-ink:#f0c870;--gold-w:#3a2f12;color-scheme:dark}
+*{box-sizing:border-box}[hidden]{display:none!important}
+html{scroll-padding-top:80px;scroll-behavior:smooth}html,body{margin:0;overflow-x:clip}
+body{background:var(--ground);color:var(--ink);font-family:var(--ui);font-size:var(--fs);line-height:1.65}
+a{color:var(--accent);text-underline-offset:3px}
+.top{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:58px;padding:6px max(16px,env(safe-area-inset-right,0px)) 6px max(16px,env(safe-area-inset-left,0px))}
+.top b{flex:1;min-width:0;font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top b .u{font-family:var(--ur);font-weight:400;font-size:17px;color:var(--accent)}
+.btn{font-family:var(--ui);font-size:12.5px;font-weight:600;border:1px solid var(--rule);background:var(--paper);border-radius:9px;padding:0 11px;min-height:36px;color:var(--ink);cursor:pointer}
+.btn:hover,.btn:focus-visible{border-color:var(--accent);outline:none}
+.desk{display:grid;grid-template-columns:260px minmax(0,1fr);gap:28px;max-width:1280px;margin:0 auto;padding:24px max(16px,env(safe-area-inset-right,0px)) 80px max(16px,env(safe-area-inset-left,0px))}
+nav{position:sticky;top:78px;align-self:start;max-height:calc(100vh - 100px);overflow:auto;font-size:13px;line-height:1.5;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:10px}
+nav ul{list-style:none;margin:0;padding:0}nav ul ul{padding-left:12px}
+nav a{display:block;padding:4px 8px;border-radius:7px;color:var(--soft);text-decoration:none}nav a:hover{background:var(--wash);color:var(--ink)}
+nav a.cur{background:var(--accent-w);color:var(--accent);font-weight:600}
+.sheet{min-width:0;background:var(--paper);border:1px solid var(--rule);border-radius:14px;box-shadow:0 1px 2px rgba(29,33,31,.05),0 12px 32px rgba(29,33,31,.06);padding:28px clamp(16px,4vw,48px)}
+.sheet>*{max-width:76ch}.sheet>.tw{max-width:100%}
+h1,h2,h3{line-height:1.3;text-wrap:balance}
+h1{font-size:1.55em;margin:0 0 .5em}
+h2{font-size:1.25em;margin:2em 0 .6em;padding-top:.7em;border-top:2px solid var(--accent)}
+h3{font-size:1.06em;margin:1.7em 0 .5em;color:var(--accent)}
+p,li{margin:.5em 0}ul,ol{padding-left:1.4em}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.84em;background:var(--wash);padding:1px 5px;border-radius:5px}
+hr{border:0;border-top:1px solid var(--rule);margin:2em 0}
+.tw{overflow-x:auto;margin:1em 0;border:1px solid var(--rule);border-radius:10px}
+table{border-collapse:collapse;font-size:13px;line-height:1.45;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top;min-width:70px}
+th{background:var(--paper-2);font-weight:600}tr:last-child td{border-bottom:0}
+.ar{font-family:var(--ar);font-size:1.08em;unicode-bidi:isolate}
+.rec{color:var(--gold-ink);background:var(--gold-w);padding:0 5px;border-radius:5px;font-size:.82em;font-weight:700}
+@media (max-width:900px){.desk{grid-template-columns:minmax(0,1fr)}nav{position:static;max-height:none}}
+@media (min-width:901px){#bToc{display:none}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.top a.btn{display:inline-flex;align-items:center;text-decoration:none}

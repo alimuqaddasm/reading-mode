@@ -1,0 +1,11 @@
+(()=>{const r=document.documentElement,get=(k,d)=>{try{const v=localStorage.getItem('rmplan.'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set=(k,v)=>{try{localStorage.setItem('rmplan.'+k,JSON.stringify(v))}catch(e){}};
+let fs=get('fs',17);const ap=()=>r.style.setProperty('--fs',fs+'px');ap();
+document.getElementById('bS').onclick=()=>{fs=Math.max(13,fs-1);set('fs',fs);ap()};document.getElementById('bL').onclick=()=>{fs=Math.min(26,fs+1);set('fs',fs);ap()};
+const th=get('theme',null);if(th)r.dataset.theme=th;
+document.getElementById('bT').onclick=()=>{const dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.dataset.theme=dark?'light':'dark';set('theme',r.dataset.theme)};
+const toc=document.getElementById('toc');if(innerWidth<=900)toc.hidden=true;document.getElementById('bToc').onclick=()=>{toc.hidden=!toc.hidden};
+toc.addEventListener('click',e=>{if(e.target.closest('a')&&innerWidth<=900)toc.hidden=true});
+document.querySelectorAll('.sheet p, article li, article td').forEach(el=>{el.innerHTML=el.innerHTML.replace(/\bREC\b/g,'<span class="rec">REC</span>')});
+const hs=[...document.querySelectorAll('.sheet h2[id], .sheet h3[id]')],links=new Map([...toc.querySelectorAll('a')].map(a=>[a.getAttribute('href').slice(1),a]));
+const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){toc.querySelectorAll('a.cur').forEach(a=>a.classList.remove('cur'));const a=links.get(e.target.id);a&&a.classList.add('cur')}})},{rootMargin:'-70px 0px -70% 0px'});hs.forEach(h=>io.observe(h));
+})();
