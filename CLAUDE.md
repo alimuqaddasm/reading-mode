@@ -1,7 +1,7 @@
 # reading-mode
 
 <!-- hub-rules:start -->
-## Hub rules v2 (2026-11-11), same for every account and every session
+## Hub rules v3 (2026-11-12), same for every account and every session
 
 If `kit/REPO-RULES.md` in `alimuqaddasm/hub` shows a newer version than this, follow that one.
 
@@ -9,7 +9,7 @@ Each session starts on its own branch cut from `main`, so the newest work is oft
 
 **Before you open or change any file, even just to show it**
 1. Run `git ls-remote --heads origin`. For each `claude/*` branch other than yours, `git fetch origin <branch>` and `git diff --name-only origin/main...FETCH_HEAD` to see whether it changes the files you were asked about. This is the live truth for this repo.
-2. Read `README.md` in `alimuqaddasm/hub` (GitHub tools, or attach the repo) for the picture across repos. It can be hours old. If its "Rebuilt" time is more than 6 hours old, or you cannot read it, or this repo is not listed in it, say so in your first reply and carry on with step 1.
+2. Read `README.md` in `alimuqaddasm/hub` (GitHub tools, or attach the repo) for the picture across repos. It can be hours old. If its "Rebuilt" time is more than 13 hours old, or you cannot read it, or this repo is not listed in it, say so in your first reply and carry on with step 1.
 3. If exactly one branch holds newer work on your task, bring it into your own branch before your first commit: `git merge --ff-only FETCH_HEAD`; if that is refused, `git fetch --deepen=500 origin` and do a normal merge. Tell the owner which branch you built on.
 4. If several do: when one contains the others, use that one. When they have diverged, or one changed in the last few hours (another session may be open on it), or a merge conflicts, do not choose. Give the owner the branch names and dates and ask.
 5. Never commit to, force push or delete a branch that is not yours.
@@ -29,6 +29,7 @@ Each session starts on its own branch cut from `main`, so the newest work is oft
 - If a merge conflicts, stop in that repo, leave your branch pushed, and name the files. Do not pick a side.
 - If your branch was built on another branch, say so: saving puts that work in `main` too.
 - Check that `main` on GitHub now contains your last commit. Then list every repo as saved or not saved, with the reason. Never say saved unless that check passed.
+- After a save that reached `main`, start the hub scan so the Work Map and Reading Mode catch up: run the `Scan repos` workflow (`scan.yml`) in `alimuqaddasm/hub` with workflow_dispatch (GitHub tools). If that is refused, say so; the twice-daily scan will pick it up.
 
 Skipped steps are not caught. Pushed work always shows on the hub, but unpushed work and unwritten decisions are lost.
 <!-- hub-rules:end -->
