@@ -120,6 +120,7 @@ async function route() {
       return lessonView({ d, key: `${course.id}/B${seg[1]}/${slug}`, course, bab: +seg[1], tab: q.get('t') || 'tc', block: q.get('b') });
     }
     if (atlas && !seg[1]) return atlasView(atlas, null);
+    if (atlas && seg[1] === 'other') return textView(await data(`${atlas.id}/other.json`), [atlas.ur, 'Introduction and appendices'], [atlas.id]);
     if (atlas && !seg[2]) return atlasView(atlas, +seg[1]);
     if (atlas && seg[2] === 'atlas') return textView(await data(`${atlas.id}/B${seg[1]}/atlas.json`), [atlas.ur, `B${seg[1]}`, 'Atlas text'], [atlas.id, seg[1]]);
     if (atlas) {
@@ -183,8 +184,8 @@ function library() {
   for (const [id, ur] of ALL_ATLASES) {
     const a = S.index.atlases.find(x => x.id === id);
     if (a) { const built = a.babs.reduce((n, b) => n + b.fasls.filter(f => f.parts.length).length, 0), all = a.babs.reduce((n, b) => n + b.fasls.length, 0);
-      h += `<a class="card" href="#${id}"><span class="t">${ur}</span><span class="m"><span>${a.babs.map(b => 'B' + b.n).join(', ')}</span><span>${built} of ${all} Fasl lessons built</span></span><span class="bar"><span style="width:${100 * built / all}%;background:var(--atlas)"></span></span></a>`; }
-    else h += `<div class="card off"><span class="t">${ur}</span><span class="m"><span>Not in Reading Mode yet</span></span></div>`;
+      h += `<a class="card" href="#${id}"><span class="t">${ur}</span><span class="m"><span>${a.babs.map(b => 'B' + b.n).join(', ')}</span><span>${a.babs.length} Babs, every Nukta</span><span>${built ? built + ' of ' + all + ' Fasls built as lessons' : 'no Fasl lessons yet'}</span></span><span class="bar"><span style="width:${100 * built / all}%;background:var(--atlas)"></span></span></a>`; }
+    else h += `<div class="card off"><span class="t">${ur}</span><span class="m"><span>Being built on a branch; it appears here once it reaches main</span></span></div>`;
   }
   h += `</div></section><section class="grid">`;
   h += `<div class="panel"><h3>Waiting on you</h3>${S.index.courses.flatMap(c => c.babs.map(b => ({ c, b, q: b.sabaq.reduce((n, s) => n + s.q, 0) }))).filter(x => x.q).map(x => `<a class="rowlink" href="#notes?v=q&c=${x.c.id}"><span>${x.c.code} B${x.b.n}: open questions</span><b>${x.q}</b></a>`).join('') || '<p class="ui muted">Nothing open.</p>'}</div>`;
@@ -198,38 +199,66 @@ function library() {
 /* ---------- course and atlas pages ---------- */
 function courseView(c) {
   topBar({ crumbs: [{ t: c.ur }], wm: `${WM}#course?c=${c.id}` });
+  const at = c.atlas && S.index.atlases.find(a => a.id === c.atlas);
   let h = `<div class="page"><header style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-family:var(--ur-h);font-size:40px;line-height:2.1">${c.ur}</h1>
-    <p class="ui" style="margin:0;direction:ltr;text-align:right;color:var(--soft)">${c.code}, built from the <a href="#${c.atlas}">${c.atlas[0].toUpperCase() + c.atlas.slice(1)} atlas</a></p></header>`;
+    <p class="ui" style="margin:0;direction:ltr;text-align:right;color:var(--soft)">${c.code}${at ? `, built from the <a href="#${at.id}">${at.name} atlas</a>` : ''} · <a href="https://github.com/alimuqaddasm/${c.repo}">${c.repo}</a></p></header>`;
+  const flat = c.id === 'mrf';
   for (const b of c.babs) {
-    h += `<section style="display:flex;flex-direction:column;gap:12px"><div class="shead"><h2>B${b.n} hub sabaq</h2><span>${b.sabaq.length} sabaq · editor notes, open questions and teacher-only parts counted per sabaq</span></div><div class="list">`;
-    for (const s of b.sabaq) h += `<a class="li" href="#${c.id}/${b.n}/${s.n}"><span class="n">S${s.n}</span><span class="t">${esc(s.title)}</span><span class="meta">${s.L ? `<span class="pill ${s.Ls === 'planned' ? 'lp' : 'l'}">L${s.L} ${s.Ls === 'planned' ? 'planned' : 'taught'}</span>` : ''}<span class="pill note">${s.notes} notes</span>${s.q ? `<span class="pill q">${s.q} questions</span>` : ''}${s.tc ? `<span class="pill tc">${s.tc} teacher only</span>` : ''}</span></a>`;
+    h += `<section style="display:flex;flex-direction:column;gap:12px"><div class="shead"><h2>${flat ? 'Lessons' : `B${b.n} hub sabaq`}</h2><span>${b.sabaq.length} ${flat ? 'lessons' : 'sabaq'} · editor notes, open questions and teacher-only parts counted for each</span></div><div class="list">`;
+    let sec = null;
+    for (const s of b.sabaq) {
+      if (flat && s.section && s.section !== sec) { sec = s.section; h += `<div class="li off" style="min-height:40px;background:var(--paper-2)"><span></span><span class="t" style="font-size:15px;font-weight:700;color:var(--soft)">${esc(sec)}</span><span></span></div>`; }
+      h += `<a class="li" href="#${c.id}/${b.n}/${s.slug}"><span class="n">${esc(s.label)}</span><span class="t">${esc(s.title)}</span><span class="meta">${s.L ? `<span class="pill ${s.Ls === 'planned' ? 'lp' : 'l'}">L${s.L} ${s.Ls === 'planned' ? 'planned' : 'taught'}</span>` : ''}${s.notes ? `<span class="pill note">${s.notes} notes</span>` : ''}${s.q ? `<span class="pill q">${s.q} questions</span>` : ''}${s.tc ? `<span class="pill tc">${s.tc} teacher only</span>` : ''}${s.text ? '<span class="pill off">plain text</span>' : ''}</span></a>`;
+    }
     h += `</div>`;
-    if (b.lessons.length) {
+    if (b.lessons && b.lessons.length) {
       h += `<div class="shead" style="margin-top:14px"><h2>B${b.n} class lesson texts</h2><span>Written from a hub sabaq for one class; every version kept</span></div><div class="list">`;
       for (const l of b.lessons) h += `<a class="li" href="#${c.id}/${b.n}/${l.slug}"><span class="n" style="color:var(--gold-ink)">L${l.L}</span><span class="t">${esc(l.title)}</span><span class="meta"><span class="pill off">${esc(l.variant || 'main text')}</span><span class="pill off">${esc(l.where.split('/')[0])}</span></span></a>`;
       h += `</div>`;
     }
     h += `</section>`;
   }
-  h += `<section style="display:flex;flex-direction:column;gap:12px"><div class="shead"><h2>Papers</h2><span>Plans, diagnosis, feedback, rulings, change logs, open-question lists</span></div><div class="list">`;
-  for (const p of c.papers) h += `<a class="li" href="#${c.id}/papers/${p.i}"><span class="n">${p.i + 1}</span><span class="t ui" style="direction:ltr;text-align:right;font-size:14px">${esc(p.path)}</span><span></span></a>`;
-  $('#view').innerHTML = h + `</div></section></div>`;
+  if (!c.babs.length) h += `<p class="ui muted" style="direction:ltr;text-align:right">This course keeps its sessions as papers; they are listed below.</p>`;
+  // papers grouped by folder
+  const groups = {};
+  c.papers.forEach(p => { const d = p.path.includes('/') ? p.path.split('/').slice(0, -1).join('/') : '(top folder)'; (groups[d] = groups[d] || []).push(p); });
+  const q = new URLSearchParams(location.hash.split('?')[1] || ''); const filt = (q.get('pf') || '').toLowerCase();
+  h += `<section style="display:flex;flex-direction:column;gap:12px"><div class="shead"><h2>Papers</h2><span>${c.papers.length} files: plans, diagnosis, feedback, rulings, change logs, open questions, tafseer, notes</span></div>
+    <label class="ui" style="direction:ltr;display:flex;gap:8px;align-items:center;justify-content:flex-end"><span class="muted" style="font-size:13px">Filter</span><input id="pf" type="search" value="${esc(filt)}" placeholder="folder or file name" style="font-size:14px;border:1px solid var(--rule);border-radius:9px;padding:0 10px;min-height:36px;background:var(--paper);min-width:240px"></label>`;
+  for (const [d, ps] of Object.entries(groups).sort()) {
+    const shown = ps.filter(p => !filt || p.path.toLowerCase().includes(filt));
+    if (!shown.length) continue;
+    h += `<details class="list pgrp"${Object.keys(groups).length <= 6 || filt ? ' open' : ''}><summary class="ui" style="cursor:pointer;direction:ltr;text-align:right;padding:12px 22px;font-size:14px;font-weight:650">${esc(d)} <span class="muted" style="font-weight:500">· ${shown.length}</span></summary>`;
+    for (const p of shown) h += `<a class="li" href="#${c.id}/papers/${p.i}"><span class="n">${p.i + 1}</span><span class="t">${p.title && /[؀-ۿ]/.test(p.title) ? esc(p.title) + '<br>' : ''}<span class="ui" style="direction:ltr;display:block;text-align:right;font-size:13px;color:var(--soft)">${esc(p.path.split('/').pop())}${p.title && !/[؀-ۿ]/.test(p.title) && p.title !== p.path ? ' · ' + esc(p.title) : ''}</span></span><span></span></a>`;
+    h += `</details>`;
+  }
+  $('#view').innerHTML = h + `</section></div>`;
+  const pf = $('#pf'); if (pf) pf.addEventListener('change', () => go([c.id], pf.value ? { pf: pf.value } : {}));
 }
 function atlasView(a, bn) {
   const b = a.babs.find(x => x.n === bn);
   topBar({ crumbs: b ? [{ t: a.ur, h: '#' + a.id }, { t: 'B' + bn, ui: 1 }] : [{ t: a.ur }], wm: `${WM}#atlas?a=${a.id}${bn ? '&b=' + bn : ''}` });
-  let h = `<div class="page"><header style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-family:var(--ur-h);font-size:40px;line-height:2.1">${a.ur}</h1>
-    <p class="ui" style="margin:0;direction:ltr;text-align:right;color:var(--soft)">${a.name} atlas. ${a.babs.length === 1 ? 'In Reading Mode so far: Bab ' + a.babs[0].n + '.' : ''}</p></header>`;
-  for (const x of (b ? [b] : a.babs)) {
-    const built = x.fasls.filter(f => f.parts.length).length;
-    h += `<section style="display:flex;flex-direction:column;gap:12px"><div class="shead"><h2>B${x.n} Fasls</h2><span>${built} of ${x.fasls.length} built as atlas lessons · <a href="#${a.id}/${x.n}/atlas">the atlas text of this Bab</a></span></div><div class="list">`;
-    for (const f of x.fasls) {
-      const p = f.parts[0];
-      const used = (f.used || []).map(u => `<span class="pill s">${u.code}</span>`).join('');
-      h += p ? `<a class="li" href="#${a.id}/${x.n}/${p.id}"><span class="n" style="color:var(--atlas)">F${f.id.split('.')[1]}</span><span class="t">${esc(p.title || f.ur)}</span><span class="meta"><span class="pill f">${esc(p.label)}</span>${used}</span></a>`
-        : `<div class="li off"><span class="n">F${f.id.split('.')[1]}</span><span class="t">${esc(f.ur)}</span><span class="meta"><span class="pill off">not built yet</span>${used}</span></div>`;
+  const cs = S.index.courses.filter(c => c.atlas === a.id);
+  let h = `<div class="page"><header style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-family:var(--ur-h);font-size:40px;line-height:2.1">${b ? `${a.ur}، باب ${UD(b.n)}` : a.ur}</h1>
+    ${b ? `<p style="margin:0;font-size:20px;line-height:2;color:var(--soft)">${esc(b.ur || '')}</p>` : ''}
+    <p class="ui" style="margin:0;direction:ltr;text-align:right;color:var(--soft)">${a.name} atlas${cs.length ? ' · used by ' + cs.map(c => `<a href="#${c.id}">${c.code}</a>`).join(', ') : ' · no course built from it yet'}</p></header>`;
+  if (!b) {
+    h += `<div class="grid">` + a.babs.map(x => { const built = x.fasls.filter(f => f.parts.length).length;
+      const used = [...new Set(x.fasls.flatMap(f => (f.used || []).map(u => u.code.split(' S')[0].split(' L')[0])))];
+      return `<a class="card" href="#${a.id}/${x.n}"><span class="m" style="justify-content:space-between"><span>B${x.n}</span><span>${x.fasls.length} Fasls${built ? ` · ${built} built as lessons` : ''}</span></span><span class="t" style="font-size:20px">${esc(x.ur || '')}</span>
+        ${built ? `<span class="bar"><span style="width:${100 * built / Math.max(1, x.fasls.length)}%;background:var(--atlas)"></span></span>` : ''}${used.length ? `<span class="m">${used.map(u => `<span class="pill s">${esc(u)}</span>`).join('')}</span>` : ''}</a>`; }).join('') + `</div>`;
+    if (a.other) h += `<a class="btn" href="#${a.id}/other" style="align-self:flex-end">Introduction, registers and appendices of the atlas</a>`;
+  } else {
+    const built = b.fasls.filter(f => f.parts.length).length;
+    h += `<section style="display:flex;flex-direction:column;gap:12px"><div class="shead"><h2>Fasls</h2><span>${built} of ${b.fasls.length} built as atlas lessons · <a href="#${a.id}/${b.n}/atlas">the atlas text of this Bab, every Nukta</a></span></div><div class="list">`;
+    for (const f of b.fasls) {
+      const used = (f.used || []).map(u => `<a class="pill s" href="#${u.course}/${u.bab}/${u.slug}">${esc(u.code)}</a>`).join('');
+      if (!f.parts.length) { h += `<div class="li off"><span class="n">F${f.id.split('.')[1]}</span><span class="t">${esc(f.ur)}</span><span class="meta"><span class="pill off">not built yet</span>${used}</span></div>`; continue; }
+      f.parts.forEach((p, i) => { h += `<a class="li" href="#${a.id}/${b.n}/${p.id}"><span class="n" style="color:var(--atlas)">F${f.id.split('.')[1]}${f.parts.length > 1 ? '.' + (i + 1) : ''}</span><span class="t">${esc(p.title || f.ur)}</span><span class="meta"><span class="pill f">${esc(p.label)}</span>${i === 0 ? used : ''}</span></a>`; });
     }
     h += `</div></section>`;
+    const prev = a.babs.find(x => x.n === b.n - 1), next = a.babs.find(x => x.n === b.n + 1);
+    h += `<nav style="display:grid;grid-template-columns:1fr 1fr;gap:14px">${prev ? `<a class="card" href="#${a.id}/${prev.n}" style="padding:10px 16px"><span class="ui muted" style="font-size:12px;direction:ltr;text-align:right">Previous · B${prev.n}</span><span style="font-size:17px;line-height:2">${esc(prev.ur || '')}</span></a>` : '<span></span>'}${next ? `<a class="card" href="#${a.id}/${next.n}" style="padding:10px 16px;text-align:left"><span class="ui muted" style="font-size:12px;direction:ltr;text-align:left">Next · B${next.n}</span><span style="font-size:17px;line-height:2">${esc(next.ur || '')}</span></a>` : ''}</nav>`;
   }
   $('#view').innerHTML = h + '</div>';
 }
@@ -340,13 +369,13 @@ function lessonView(L) {
   let chain = '', crumbs, wm;
   if (isS) {
     const at = S.index.atlases.find(a => a.id === L.course.atlas);
-    const fas = (d.sources || []).filter(s => /^U\d+\.\d+$/.test(s));
+    const fas = [...new Set((d.sources || []).filter(s => /^U\d+\.\d+(-\d+)?$/.test(s)).map(s => s.split('-')[0]))];
     const byBab = {}; fas.forEach(u => { const [b, f] = u.slice(1).split('.'); (byBab[b] = byBab[b] || []).push('F' + f); });
     const ents = Object.entries(byBab).sort((x, y) => y[1].length - x[1].length); const more = ents.slice(1).reduce((n, e) => n + e[1].length, 0);
     chain = `<span class="chain">${ents.slice(0, 1).map(([b, fs]) => { const ab = at && at.babs.find(x => x.n === +b); const f0 = ab && ab.fasls.find(x => x.id === `U${b}.${fs[0].slice(1)}`);
         return f0 && f0.parts.length ? `<a class="chip f" href="#${at.id}/${b}/${f0.parts[0].id}">${at.name} B${b} ${fs.join(', ')}</a>` : `<span class="chip f">${(at ? at.name : 'Atlas')} B${b} ${fs.join(', ')}</span>`; }).join(' ')}${more ? `<span class="chip f" title="${esc(ents.slice(1).map(e => 'B' + e[0] + ' ' + e[1].join(', ')).join('; '))}">+${more} more</span>` : ''}
       ${ICON.arr}<span class="chip s">${esc(d.code)}</span>${d.L ? ICON.arr + (lesLink(L, d.L) ? `<a class="chip ${d.Ls === 'planned' ? 'lp' : 'l'}" href="${lesLink(L, d.L)}">L${d.L} ${d.Ls === 'planned' ? 'planned' : 'taught'}</a>` : `<span class="chip ${d.Ls === 'planned' ? 'lp' : 'l'}">L${d.L} ${d.Ls === 'planned' ? 'planned' : 'taught'}</span>`) : ''}</span>`;
-    crumbs = [{ t: L.course.ur, h: '#' + L.course.id }, { t: 'B' + L.bab, h: '#' + L.course.id, ui: 1 }, { t: 'S' + d.n, ui: 1 }];
+    crumbs = L.course.id === 'mrf' ? [{ t: L.course.ur, h: '#' + L.course.id }, { t: d.slug || d.code, ui: 1 }] : [{ t: L.course.ur, h: '#' + L.course.id }, { t: 'B' + L.bab, h: '#' + L.course.id, ui: 1 }, { t: (d.slug || 'S' + d.n).replace(/^S0/, 'S'), ui: 1 }];
     wm = `${WM}#course?c=${L.course.id}&b=${L.bab}&s=${L.course.id}-${L.bab}-${d.n}`;
   } else if (isC) {
     chain = `<span class="chain"><span class="chip l">${esc(d.code)}</span>${d.variant ? `<span class="chip lp">${esc(d.variant)}</span>` : ''}</span>`;
@@ -405,12 +434,13 @@ function lesLink(L, n) {
 }
 function neighbours(L) {
   const d = L.d; const o = {};
-  if (d.kind === 'sabaq') { const b = L.course.babs.find(x => x.n === L.bab); const i = b.sabaq.findIndex(s => s.n === d.n);
-    const mk = s => s && { h: `#${L.course.id}/${L.bab}/${s.n}`, code: `${L.course.code} B${L.bab} S${s.n}`, t: s.title };
+  if (d.kind === 'sabaq') { const b = L.course.babs.find(x => x.n === L.bab); const i = b.sabaq.findIndex(s => s.slug === d.slug || (!d.slug && s.n === d.n));
+    const mk = s => s && { h: `#${L.course.id}/${L.bab}/${s.slug}`, code: `${L.course.code} ${L.course.id === 'mrf' ? '' : 'B' + L.bab + ' '}${s.label}`, t: s.title };
     o.prev = mk(b.sabaq[i - 1]); o.next = mk(b.sabaq[i + 1]); }
   if (d.kind === 'fasl') { const b = L.atlas.babs.find(x => x.n === L.bab); const built = b.fasls.filter(f => f.parts.length); const i = built.findIndex(f => f.id === d.fasl_id);
-    const mk = f => f && { h: `#${L.atlas.id}/${L.bab}/${f.parts[0].id}`, code: f.parts[0].label, t: f.parts[0].title };
-    o.prev = mk(built[i - 1]); o.next = mk(built[i + 1]); }
+    const parts = b.fasls.flatMap(f => f.parts); const j = parts.findIndex(p => p.id === d.id || p.id === parse().seg[2]);
+    const mk = p => p && { h: `#${L.atlas.id}/${L.bab}/${p.id}`, code: p.label, t: p.title };
+    o.prev = mk(parts[j - 1]); o.next = mk(parts[j + 1]); }
   return o;
 }
 function rowsHTML(items, tab) {
