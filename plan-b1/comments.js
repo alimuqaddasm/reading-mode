@@ -3,7 +3,8 @@
    per browser on this site); without a key, kept in this browser only until one is connected. */
 (function () {
 'use strict';
-const OWNER = 'alimuqaddasm', REPO = 'hub-notes', FILE = 'plan-b1-notes.json', KEY = 'workmap.key', LOCAL = 'rmplan.comments';
+const ME = document.currentScript, CFG = (ME && ME.dataset) || {};
+const OWNER = 'alimuqaddasm', REPO = 'hub-notes', FILE = CFG.file || 'plan-b1-notes.json', KEY = 'workmap.key', LOCAL = CFG.local || 'rmplan.comments', LABEL = CFG.label || 'Bab 1 planning menu';
 const TAGS = { keep: 'Keep', drop: 'Drop', maybe: 'Maybe', q: 'Question' };
 const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => [...(r || document).querySelectorAll(s)];
 const esc = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -18,7 +19,7 @@ const GONE = new Set();
 /* blocks: every paragraph, list item, table cell and heading of the menu, numbered in reading order */
 const blocks = $$('p, li, th, td, h1, h2, h3', sheet).filter(b => !b.closest('.cbox') && !b.querySelector('p, li'));
 blocks.forEach((b, i) => { b.dataset.b = i; });
-const sectionOf = b => { let id = ''; for (const h of $$('h2[id], h3[id]', sheet)) { if (h.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_PRECEDING) break; id = h.id; } return id; };
+const sectionOf = b => { let id = ''; for (const h of $$('h1[id], h2[id], h3[id]', sheet)) { if (h.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_PRECEDING) break; id = h.id; } return id; };
 const secTitle = id => { const h = id && document.getElementById(id); return h ? h.textContent.trim() : 'Top of the menu'; };
 
 /* ---------- storage ---------- */
@@ -48,7 +49,7 @@ async function load() {
 function queue() { dirty = true; localSave(); if (!remote) { setSave('This browser only'); return; } setSave('Saving'); clearTimeout(saveT); saveT = setTimeout(flush, 1000); }
 async function flush() {
   if (saving || !dirty || !remote) return; saving = true; dirty = false;
-  const body = s => JSON.stringify({ message: 'Planning menu comments (plan-b1)', content: b64enc(JSON.stringify({ page: 'reading-mode/plan-b1', source: 'makarim-ul-akhlaq hub-planning/B01/PLAN-V2-MENU.md', comments: C }, null, 1) + '\n'), sha: s || undefined, branch: 'main' });
+  const body = s => JSON.stringify({ message: 'Comments: ' + LABEL, content: b64enc(JSON.stringify({ page: location.pathname, label: LABEL, comments: C }, null, 1) + '\n'), sha: s || undefined, branch: 'main' });
   try {
     let r;
     try { r = await gh({ method: 'PUT', body: body(sha) }); }
@@ -146,7 +147,7 @@ bar.addEventListener('mousedown', e => e.preventDefault());
 bar.addEventListener('click', e => { const a = e.target.closest('[data-a]'); if (!a || !sel) return; add(Object.assign({}, sel.c, { tags: a.dataset.a === 'note' ? [] : [a.dataset.a] }), a.dataset.a === 'note'); getSelection().removeAllRanges(); bar.hidden = true; });
 
 /* ---------- section buttons ---------- */
-$$('h2[id], h3[id]', sheet).forEach(h => {
+$$(CFG.heads || 'h2[id], h3[id]', sheet).forEach(h => {
   const b = document.createElement('button'); b.type = 'button'; b.className = 'secbtn'; b.textContent = 'Comment on this section'; b.dataset.s = h.id;
   h.after(b);
 });
@@ -166,7 +167,7 @@ sheet.addEventListener('focusout', e => { const t = e.target.closest && e.target
 /* ---------- all comments panel ---------- */
 const panel = document.createElement('div'); panel.className = 'cover'; panel.hidden = true; document.body.append(panel);
 function md() {
-  let out = '# Comments on the Bab 1 planning menu\n', last = null;
+  let out = '# Comments on the ' + LABEL + '\n', last = null;
   for (const c of Object.values(C).sort((a, b) => a.block - b.block)) {
     const s = secTitle(c.section); if (s !== last) { out += `\n## ${s}\n`; last = s; }
     const t = (c.tags || []).map(x => TAGS[x]).join(', ');
