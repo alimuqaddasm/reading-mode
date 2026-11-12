@@ -428,6 +428,7 @@ function lessonView(L) {
   annotateAll();
   if (isS || isC || isF) LS.set('last', { h: location.hash || hash(seg), code: d.code || d.label, title: (d.title || '').replace(/<[^>]+>/g, ''), notes: nn, q: nq, tc: ntc });
   observe();
+  if (AU.key === L.key) { const bl = $('#bListen'); if (bl) bl.setAttribute('aria-pressed', 'true'); if (AU.lastB) sayBlock(AU.lastB, true); }
   const t = L.block && document.getElementById('r-' + L.block);
   if (t) { t.scrollIntoView({ block: 'start' }); focusRow(t); } else window.scrollTo(0, 0);
 }
@@ -654,73 +655,125 @@ document.addEventListener('input', e => {
 /* ---------- position, dock, panels, keys ---------- */
 function focusRow(row) { $$('.row.cur').forEach(r => r.classList.remove('cur')); row.classList.add('cur'); S.curBlock = row.dataset.b; }
 let io = null, curSec = -1;
-/* ---------- audio: plays hub-data/audio/<lesson>.mp4 and lights the block being read ---------- */
-const AU = { el: null, key: null, map: null, url: null, follow: LS.get('follow', true) };
-async function ghBlob(path) {
-  const r = await fetch(API(DATA) + path, { headers: { Authorization: 'Bearer ' + getKey(), Accept: 'application/vnd.github.raw+json', 'X-GitHub-Api-Version': '2022-11-28' } });
+/* ---------- audio: one <audio> element for the whole page, so two can never play at once ----------
+   Every open or close raises AU.gen; a download that finishes after the owner moved on sees a stale gen and is dropped.
+   The last lesson's audio stays in memory, so reopening it is instant, and the position of each lesson is remembered. */
+const AU = { el: null, gen: 0, key: null, map: null, url: null, urlKey: null, cachedMap: null, ctl: null, lastB: null, savedAt: 0, follow: LS.get('follow', true), pos: LS.get('apos', {}) };
+const fmtT = t => { t = Math.max(0, Math.floor(t || 0)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
+function audioEl() {
+  if (AU.el) return AU.el;
+  const a = AU.el = new Audio(); a.preload = 'auto';
+  const $p = id => document.getElementById(id);
+  a.addEventListener('loadedmetadata', () => { const s = $p('aSeek'); if (s) s.max = a.duration || (AU.map && AU.map.dur) || 1; });
+  a.addEventListener('play', () => { const b = $p('aPlay'); if (b) { b.textContent = 'Pause'; b.setAttribute('aria-label', 'Pause'); } if (navigator.mediaSession) navigator.mediaSession.playbackState = 'playing'; });
+  a.addEventListener('pause', () => { const b = $p('aPlay'); if (b) { b.textContent = 'Play'; b.setAttribute('aria-label', 'Play'); } if (navigator.mediaSession) navigator.mediaSession.playbackState = 'paused'; savePos(); });
+  a.addEventListener('ended', () => { if (AU.key) { delete AU.pos[AU.key]; LS.set('apos', AU.pos); } });
+  a.addEventListener('timeupdate', () => {
+    if (!AU.map || !AU.key) return;
+    const t = a.currentTime, s = $p('aSeek'), tm = $p('aTime');
+    if (s && document.activeElement !== s) s.value = t;
+    if (tm) tm.textContent = `${fmtT(t)} / ${fmtT(a.duration || AU.map.dur)}`;
+    if (Math.abs(t - AU.savedAt) > 10) savePos();
+    sayBlock(segAt(t));
+  });
+  if (navigator.mediaSession) {
+    const ms = navigator.mediaSession, h = (k, f) => { try { ms.setActionHandler(k, f); } catch (e) {} };
+    h('play', () => { if (AU.map) a.play().catch(() => {}); }); h('pause', () => a.pause());
+    h('seekbackward', () => { a.currentTime = Math.max(0, a.currentTime - 15); }); h('seekforward', () => { a.currentTime = Math.min(a.duration || 1e9, a.currentTime + 15); });
+  }
+  return a;
+}
+function savePos() { if (!AU.key || !AU.el || !AU.map) return; AU.savedAt = AU.el.currentTime; AU.pos[AU.key] = Math.floor(AU.el.currentTime); LS.set('apos', AU.pos); }
+function segAt(t) { // segments are in time order: binary search for the last one that started
+  const sg = AU.map.seg; let lo = 0, hi = sg.length - 1, f = null;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (sg[m][0] <= t) { f = sg[m]; lo = m + 1; } else hi = m - 1; }
+  return f && t < f[1] + 0.6 ? f[2] : null;
+}
+function sayBlock(b, force) {
+  if (!b || (b === AU.lastB && !force)) return;
+  AU.lastB = b; $$('.row.say').forEach(r => r.classList.toggle('say', false));
+  const row = document.getElementById('r-' + b);
+  if (row) { row.classList.add('say'); if (AU.follow && !force && AU.el && !AU.el.paused) row.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
+}
+async function ghBlob(path, signal) {
+  const r = await fetch(API(DATA) + path, { signal, headers: { Authorization: 'Bearer ' + getKey(), Accept: 'application/vnd.github.raw+json', 'X-GitHub-Api-Version': '2022-11-28' } });
   if (!r.ok) { const e = new Error(`GitHub answered ${r.status}`); e.status = r.status; throw e; }
   return r.blob();
 }
-const fmtT = t => { t = Math.max(0, Math.floor(t || 0)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
-function playerHTML() {
+function playerHTML(code) {
+  const rate = +LS.get('rate', 1);
   return `<div class="player ui" id="player" role="region" aria-label="Audio player">
-    <button type="button" class="pp" id="aPlay">Play</button><button type="button" id="aBack" title="Back 15 seconds">−15s</button><button type="button" id="aFwd" title="Forward 15 seconds">+15s</button>
-    <button type="button" id="aHere" title="Play from the block you last clicked">From here</button>
-    <input type="range" id="aSeek" min="0" max="1" step="0.1" value="0" aria-label="Position"><span class="tm" id="aTime">0:00 / 0:00</span>
-    <select id="aRate" aria-label="Speed">${[0.75, 1, 1.25, 1.5, 1.75, 2].map(r => `<option value="${r}"${r === 1 ? ' selected' : ''}>${r}×</option>`).join('')}</select>
+    <button type="button" class="pp" id="aPlay" aria-label="Play" disabled>Play</button><button type="button" id="aBack" title="Back 15 seconds" disabled>−15s</button><button type="button" id="aFwd" title="Forward 15 seconds" disabled>+15s</button>
+    <button type="button" id="aHere" title="Play from the block you last clicked" disabled>From here</button>
+    <input type="range" id="aSeek" min="0" max="1" step="0.1" value="0" aria-label="Position" disabled><span class="tm" id="aTime">${esc(code || '')}</span>
+    <select id="aRate" aria-label="Speed">${[0.75, 1, 1.25, 1.5, 1.75, 2].map(r => `<option value="${r}"${r === rate ? ' selected' : ''}>${r}×</option>`).join('')}</select>
     <button type="button" id="aFollow" aria-pressed="${AU.follow}" title="Scroll with the reading">Follow</button>
-    <button type="button" id="aClose" aria-label="Close the player">Close</button><span class="msg" id="aMsg"></span></div>`;
+    <button type="button" id="aClose" aria-label="Close the player">Close</button><span class="msg" id="aMsg" role="status"></span></div>`;
 }
 function closePlayer() {
-  if (AU.el) { AU.el.pause(); AU.el.removeAttribute('src'); AU.el.load(); }
-  if (AU.url) URL.revokeObjectURL(AU.url);
-  AU.el = AU.map = AU.url = AU.key = null;
-  const p = $('#player'); if (p) p.remove();
-  $$('.row.say').forEach(r => r.classList.remove('say')); document.body.classList.remove('has-player');
+  AU.gen++; if (AU.ctl) { AU.ctl.abort(); AU.ctl = null; }
+  if (AU.el) { savePos(); AU.el.pause(); }
+  AU.key = AU.map = AU.lastB = null;
+  const p = $('#player'); if (p) p.parentNode.removeChild(p);
+  $$('.row.say').forEach(r => r.classList.toggle('say', false)); document.body.classList.toggle('has-player', false);
+  const bl = $('#bListen'); if (bl) bl.setAttribute('aria-pressed', 'false');
 }
 async function openPlayer() {
-  const key = S.cur.key, mp = S.audio[key]; if (!mp) return;
-  if (AU.key === key && $('#player')) { AU.el.paused ? AU.el.play() : AU.el.pause(); return; }
+  const key = S.cur && S.cur.key, mp = key && S.audio[key]; if (!mp) return;
+  const a = audioEl();
+  if (AU.key === key && $('#player')) { if (AU.map) { if (a.paused) a.play().catch(() => {}); else a.pause(); } return; } // same lesson: Listen toggles; a press while loading does nothing
   closePlayer();
-  document.body.insertAdjacentHTML('beforeend', playerHTML()); document.body.classList.add('has-player');
-  const msg = $('#aMsg'); msg.textContent = 'Loading the audio';
+  const gen = ++AU.gen; AU.key = key;
+  document.body.insertAdjacentHTML('beforeend', playerHTML(S.cur.d.code)); document.body.classList.add('has-player');
+  const bl = $('#bListen'); if (bl) bl.setAttribute('aria-pressed', 'true');
+  const msg = $('#aMsg');
+  wirePlayer(a);
   try {
-    AU.map = JSON.parse(await gh(mp, null, true, DATA));
-    const blob = await ghBlob(AU.map.src);
-    if (S.cur.key !== key) return;
-    AU.url = URL.createObjectURL(blob); AU.el = new Audio(AU.url); AU.key = key; msg.textContent = '';
-  } catch (e) { msg.textContent = 'The audio could not be loaded: ' + e.message; return; }
-  const a = AU.el, seek = $('#aSeek'), map = AU.map;
-  a.addEventListener('loadedmetadata', () => { seek.max = a.duration || map.dur; });
-  a.addEventListener('play', () => { $('#aPlay').textContent = 'Pause'; });
-  a.addEventListener('pause', () => { $('#aPlay').textContent = 'Play'; });
-  let lastB = null;
-  a.addEventListener('timeupdate', () => {
-    if (AU.el !== a) return;
-    seek.value = a.currentTime; $('#aTime').textContent = `${fmtT(a.currentTime)} / ${fmtT(a.duration || map.dur)}`;
-    const sg = map.seg.find(x => a.currentTime >= x[0] && a.currentTime < x[1] + 0.6);
-    const b = sg && sg[2];
-    if (b && b !== lastB) {
-      lastB = b; $$('.row.say').forEach(r => r.classList.remove('say'));
-      const row = document.getElementById('r-' + b);
-      if (row) { row.classList.add('say'); if (AU.follow) row.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
+    let map;
+    if (AU.urlKey === key && AU.url) map = AU.cachedMap;
+    else {
+      msg.textContent = 'Loading the audio';
+      const ctl = AU.ctl = new AbortController();
+      map = JSON.parse(await gh(mp, { signal: ctl.signal }, true, DATA));
+      if (gen !== AU.gen) return;
+      const blob = await ghBlob(map.src, ctl.signal);
+      if (gen !== AU.gen) return;
+      AU.ctl = null;
+      a.removeAttribute('src');
+      if (AU.url) URL.revokeObjectURL(AU.url);
+      AU.url = URL.createObjectURL(blob); AU.urlKey = key; AU.cachedMap = map;
     }
-  });
-  $('#aPlay').onclick = () => (a.paused ? a.play() : a.pause());
+    if (a.src !== AU.url) a.src = AU.url;
+    AU.map = map; msg.textContent = '';
+    a.playbackRate = +LS.get('rate', 1);
+    $$('#player button, #player input').forEach(x => { x.disabled = false; });
+    const at = AU.pos[key] || 0;
+    if (at > 5) { a.currentTime = Math.max(0, at - 3); msg.textContent = `Carrying on from ${fmtT(at - 3)}, where you stopped.`; setTimeout(() => { if (gen === AU.gen && /^Carrying/.test(msg.textContent)) msg.textContent = ''; }, 4000); }
+    else a.currentTime = 0;
+    if (navigator.mediaSession && window.MediaMetadata) navigator.mediaSession.metadata = new MediaMetadata({ title: (S.cur.d.title || '').replace(/<[^>]+>/g, ''), artist: S.cur.d.code || '', album: 'Reading Mode' });
+    await a.play().catch(() => { if (gen === AU.gen) msg.textContent = 'Press Play to start.'; });
+  } catch (e) {
+    if (gen !== AU.gen || e.name === 'AbortError') return;
+    msg.textContent = 'The audio could not be loaded: ' + e.message;
+  }
+}
+function wirePlayer(a) {
+  $('#aPlay').onclick = () => { if (a.paused) a.play().catch(() => {}); else a.pause(); };
   $('#aBack').onclick = () => { a.currentTime = Math.max(0, a.currentTime - 15); };
   $('#aFwd').onclick = () => { a.currentTime = Math.min(a.duration || 1e9, a.currentTime + 15); };
-  $('#aRate').onchange = e => { a.playbackRate = +e.target.value; };
-  seek.oninput = () => { a.currentTime = +seek.value; };
-  $('#aFollow').onclick = e => { AU.follow = !AU.follow; LS.set('follow', AU.follow); e.target.setAttribute('aria-pressed', AU.follow); };
+  $('#aRate').onchange = e => { a.playbackRate = +e.target.value; LS.set('rate', +e.target.value); };
+  $('#aSeek').oninput = e => { a.currentTime = +e.target.value; };
+  $('#aFollow').onclick = e => { AU.follow = !AU.follow; LS.set('follow', AU.follow); e.currentTarget.setAttribute('aria-pressed', AU.follow); };
   $('#aHere').onclick = () => {
+    if (!AU.map) return;
     const ids = (S.cur.d.items || []).map(i => i.id); const from = Math.max(0, ids.indexOf(S.curBlock));
-    const sg = map.seg.find(x => x[2] && ids.indexOf(x[2]) >= from);
-    if (sg) { a.currentTime = sg[0]; a.play(); }
+    const sg = AU.map.seg.find(x => x[2] && ids.indexOf(x[2]) >= from);
+    if (sg) { a.currentTime = sg[0]; a.play().catch(() => {}); }
   };
   $('#aClose').onclick = closePlayer;
-  a.play().catch(() => {});
 }
 document.addEventListener('click', e => { if (e.target.closest('#bListen')) openPlayer(); });
+addEventListener('pagehide', savePos);
 
 function observe() {
   if (io) io.disconnect();
