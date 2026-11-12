@@ -46,7 +46,7 @@ const cache = {};
 async function data(rel) { return cache[rel] || (cache[rel] = JSON.parse(await gh('reading/' + rel, null, true, DATA))); }
 
 /* ---------- state ---------- */
-const S = { index: null, notes: { notes: {}, marks: {} }, notesSha: null, cur: null, key: '', curBlock: null, wmBase: WM };
+const S = { audio: {}, index: null, notes: { notes: {}, marks: {} }, notesSha: null, cur: null, key: '', curBlock: null, wmBase: WM };
 const pref = { fs: LS.get('fs', 21), show: LS.get('show', { note: true, q: true, tc: true, omit: true }), focus: null };
 function setFs(v) { pref.fs = Math.min(28, Math.max(15, v)); document.documentElement.style.setProperty('--fs', pref.fs + 'px'); LS.set('fs', pref.fs); }
 setFs(pref.fs);
@@ -56,6 +56,7 @@ async function load() {
   screen('loading');
   try {
     S.index = await data('index.json');
+    try { S.audio = JSON.parse(await gh('audio/index.json', null, true, DATA)); } catch (e) { S.audio = {}; }
     try { const j = await gh('notes.json'); S.notes = JSON.parse(b64dec(j.content)); S.notesSha = j.sha; S.notes.notes = S.notes.notes || {}; S.notes.marks = S.notes.marks || {}; }
     catch (e) { if (e.status !== 404) throw e; }
     route();
@@ -138,6 +139,7 @@ async function route() {
 
 /* ---------- top bar ---------- */
 function topBar(o) {
+  if (typeof AU !== 'undefined' && AU.key && o.lessonKey !== AU.key) closePlayer();
   const crumbs = (o.crumbs || []).map((c, i, a) => (i ? ICON.chev : '') + (i === a.length - 1 ? `<span class="cur${c.ui ? ' c ui' : ''}">${esc(c.t)}</span>` : `<a href="${c.h}"${c.ui ? ' class="c ui"' : ''}>${esc(c.t)}</a>`)).join('');
   const wm = o.wm || WM;
   let h = `<div class="top1"><button type="button" class="btn tocbtn" id="bToc">${ICON.menu}Contents</button>
@@ -389,7 +391,7 @@ function lessonView(L) {
     crumbs = [{ t: L.atlas.ur, h: '#' + L.atlas.id }, { t: 'B' + L.bab, h: `#${L.atlas.id}/${L.bab}`, ui: 1 }, { t: d.label || d.fasl_id, ui: 0 }];
     wm = `${WM}#atlas?a=${L.atlas.id}&b=${L.bab}`;
   }
-  topBar({ crumbs, chain, second, rail: 1, wm });
+  topBar({ crumbs, chain, second, rail: 1, wm, lessonKey: L.key });
   // rail
   const secs = []; let cur = null;
   items.forEach(it => { if (it.t === 'h2' || (it.t === 'h3' && !isS)) { cur = { it, sch: new Set() }; secs.push(cur); } else if (cur && it.sch) it.sch.forEach(x => cur.sch.add(x)); });
@@ -415,7 +417,7 @@ function lessonView(L) {
   h += `<nav style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:26px 44px 0">${nx.prev ? `<a class="card" href="${nx.prev.h}" style="padding:10px 16px"><span class="ui muted" style="font-size:12px;direction:ltr;text-align:right">Previous · ${esc(nx.prev.code)}</span><span style="font-size:17px;line-height:2">${esc(nx.prev.t)}</span></a>` : '<span></span>'}
     ${nx.next ? `<a class="card" href="${nx.next.h}" style="padding:10px 16px;text-align:left"><span class="ui muted" style="font-size:12px;direction:ltr;text-align:left">Next · ${esc(nx.next.code)}</span><span style="font-size:17px;line-height:2">${esc(nx.next.t)}</span></a>` : ''}</nav>`;
   h += `</article></main></div><div class="dock"><div class="dock-in"><button type="button" id="dPrev" aria-label="Previous section">${ICON.prev}</button><span class="now" id="now"></span><button type="button" id="dNext" aria-label="Next section">${ICON.next}</button>
-    <button type="button" class="listen" disabled title="No audio has been made for this lesson yet">${ICON.play}Listen</button></div></div>`;
+    ${S.audio[L.key] ? `<button type="button" class="listen" id="bListen" title="Play the audio of this lesson">${ICON.play}Listen</button>` : '<button type="button" class="listen" disabled title="No audio has been made for this lesson yet">' + ICON.play + 'Listen</button>'}</div></div>`;
   $('#view').innerHTML = h;
   // wire
   $('#bSm').onclick = () => setFs(pref.fs - 1); $('#bLg').onclick = () => setFs(pref.fs + 1);
@@ -652,6 +654,74 @@ document.addEventListener('input', e => {
 /* ---------- position, dock, panels, keys ---------- */
 function focusRow(row) { $$('.row.cur').forEach(r => r.classList.remove('cur')); row.classList.add('cur'); S.curBlock = row.dataset.b; }
 let io = null, curSec = -1;
+/* ---------- audio: plays hub-data/audio/<lesson>.mp4 and lights the block being read ---------- */
+const AU = { el: null, key: null, map: null, url: null, follow: LS.get('follow', true) };
+async function ghBlob(path) {
+  const r = await fetch(API(DATA) + path, { headers: { Authorization: 'Bearer ' + getKey(), Accept: 'application/vnd.github.raw+json', 'X-GitHub-Api-Version': '2022-11-28' } });
+  if (!r.ok) { const e = new Error(`GitHub answered ${r.status}`); e.status = r.status; throw e; }
+  return r.blob();
+}
+const fmtT = t => { t = Math.max(0, Math.floor(t || 0)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
+function playerHTML() {
+  return `<div class="player ui" id="player" role="region" aria-label="Audio player">
+    <button type="button" class="pp" id="aPlay">Play</button><button type="button" id="aBack" title="Back 15 seconds">−15s</button><button type="button" id="aFwd" title="Forward 15 seconds">+15s</button>
+    <button type="button" id="aHere" title="Play from the block you last clicked">From here</button>
+    <input type="range" id="aSeek" min="0" max="1" step="0.1" value="0" aria-label="Position"><span class="tm" id="aTime">0:00 / 0:00</span>
+    <select id="aRate" aria-label="Speed">${[0.75, 1, 1.25, 1.5, 1.75, 2].map(r => `<option value="${r}"${r === 1 ? ' selected' : ''}>${r}×</option>`).join('')}</select>
+    <button type="button" id="aFollow" aria-pressed="${AU.follow}" title="Scroll with the reading">Follow</button>
+    <button type="button" id="aClose" aria-label="Close the player">Close</button><span class="msg" id="aMsg"></span></div>`;
+}
+function closePlayer() {
+  if (AU.el) { AU.el.pause(); AU.el.removeAttribute('src'); AU.el.load(); }
+  if (AU.url) URL.revokeObjectURL(AU.url);
+  AU.el = AU.map = AU.url = AU.key = null;
+  const p = $('#player'); if (p) p.remove();
+  $$('.row.say').forEach(r => r.classList.remove('say')); document.body.classList.remove('has-player');
+}
+async function openPlayer() {
+  const key = S.cur.key, mp = S.audio[key]; if (!mp) return;
+  if (AU.key === key && $('#player')) { AU.el.paused ? AU.el.play() : AU.el.pause(); return; }
+  closePlayer();
+  document.body.insertAdjacentHTML('beforeend', playerHTML()); document.body.classList.add('has-player');
+  const msg = $('#aMsg'); msg.textContent = 'Loading the audio';
+  try {
+    AU.map = JSON.parse(await gh(mp, null, true, DATA));
+    const blob = await ghBlob(AU.map.src);
+    if (S.cur.key !== key) return;
+    AU.url = URL.createObjectURL(blob); AU.el = new Audio(AU.url); AU.key = key; msg.textContent = '';
+  } catch (e) { msg.textContent = 'The audio could not be loaded: ' + e.message; return; }
+  const a = AU.el, seek = $('#aSeek'), map = AU.map;
+  a.addEventListener('loadedmetadata', () => { seek.max = a.duration || map.dur; });
+  a.addEventListener('play', () => { $('#aPlay').textContent = 'Pause'; });
+  a.addEventListener('pause', () => { $('#aPlay').textContent = 'Play'; });
+  let lastB = null;
+  a.addEventListener('timeupdate', () => {
+    if (AU.el !== a) return;
+    seek.value = a.currentTime; $('#aTime').textContent = `${fmtT(a.currentTime)} / ${fmtT(a.duration || map.dur)}`;
+    const sg = map.seg.find(x => a.currentTime >= x[0] && a.currentTime < x[1] + 0.6);
+    const b = sg && sg[2];
+    if (b && b !== lastB) {
+      lastB = b; $$('.row.say').forEach(r => r.classList.remove('say'));
+      const row = document.getElementById('r-' + b);
+      if (row) { row.classList.add('say'); if (AU.follow) row.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
+    }
+  });
+  $('#aPlay').onclick = () => (a.paused ? a.play() : a.pause());
+  $('#aBack').onclick = () => { a.currentTime = Math.max(0, a.currentTime - 15); };
+  $('#aFwd').onclick = () => { a.currentTime = Math.min(a.duration || 1e9, a.currentTime + 15); };
+  $('#aRate').onchange = e => { a.playbackRate = +e.target.value; };
+  seek.oninput = () => { a.currentTime = +seek.value; };
+  $('#aFollow').onclick = e => { AU.follow = !AU.follow; LS.set('follow', AU.follow); e.target.setAttribute('aria-pressed', AU.follow); };
+  $('#aHere').onclick = () => {
+    const ids = (S.cur.d.items || []).map(i => i.id); const from = Math.max(0, ids.indexOf(S.curBlock));
+    const sg = map.seg.find(x => x[2] && ids.indexOf(x[2]) >= from);
+    if (sg) { a.currentTime = sg[0]; a.play(); }
+  };
+  $('#aClose').onclick = closePlayer;
+  a.play().catch(() => {});
+}
+document.addEventListener('click', e => { if (e.target.closest('#bListen')) openPlayer(); });
+
 function observe() {
   if (io) io.disconnect();
   let hs = $$('.row.t-h2').filter(r => $('.txt', r).textContent.trim()); if (hs.length < 2) hs = $$('.row.t-h2, .row.t-h3').filter(r => $('.txt', r).textContent.trim());
