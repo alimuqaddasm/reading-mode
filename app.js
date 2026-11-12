@@ -316,8 +316,8 @@ function textView(d, crumbs, back) {
 /* ---------- a lesson ---------- */
 const PAL = s => (s && s.length === 1 && SCH[s[0]]) ? `var(--${s[0]}-t)` : (s && s.length > 1 ? 'var(--several)' : '');
 function sents(arr, bid) {
-  return (arr || []).map((s, i) => { const sch = s.sch || []; const keep = pref.focus && sch.includes(pref.focus);
-    return `<span class="s${s.c ? ' comp' : ''}${keep ? ' keep-sch' : ''}" data-s="${bid}.${i}" data-r="${esc(s.refs)}" style="${s.c ? '' : `--t:${PAL(sch)}`}">${s.h}</span>`; }).join(' ');
+  return (arr || []).map((s, i) => { const sch = s.sch || [];
+    return `<span class="s${s.c ? ' comp' : ''}" data-sch="${sch.join(' ')}" data-s="${bid}.${i}" data-r="${esc(s.refs)}" style="${s.c ? '' : `--t:${PAL(sch)}`}">${s.h}</span>`; }).join(' ');
 }
 function speaker(sch) {
   if (!sch || !sch.length) return '';
@@ -444,9 +444,19 @@ function lessonView(L) {
     const el = anc && document.getElementById('r-' + anc);
     if (el) { const fix = () => scrollBy(0, el.getBoundingClientRect().top - off); fix(); requestAnimationFrame(fix); }
     const b = $(sel); if (b) b.focus({ preventScroll: true }); };
-  $$('[data-show]').forEach(b => b.onclick = () => { pref.show[b.dataset.show] = !pref.show[b.dataset.show]; LS.set('show', pref.show); rer(`[data-show="${b.dataset.show}"]`); });
-  $$('[data-sch]').forEach(b => b.onclick = () => { pref.focus = pref.focus === b.dataset.sch ? null : b.dataset.sch; rer(`[data-sch="${b.dataset.sch}"]`); });
-  $('.desk').classList.toggle('sch-hide', !!pref.focus);
+  const keepPlace = f => { // hold the paragraph at the top of the screen still while the layout changes
+    const lim = ($('#top').getBoundingClientRect().bottom || 0) + 8; let el = null, off = 0;
+    for (const r of $$('.row[data-b]')) { const t = r.getBoundingClientRect(); if (t.bottom > lim) { el = r; off = t.top; break; } }
+    f(); if (el) scrollBy(0, el.getBoundingClientRect().top - off); };
+  const applyShow = () => { const dk = $('.desk'); if (!dk) return;
+    dk.classList.toggle('hide-note', !pref.show.note); dk.classList.toggle('hide-q', !pref.show.q);
+    $$('details.omitted', dk).forEach(x => { x.open = !!pref.show.omit; });
+    if (pref.focus) dk.dataset.focus = pref.focus; else delete dk.dataset.focus;
+    $$('[data-show]').forEach(b => b.setAttribute('aria-pressed', String(!!pref.show[b.dataset.show])));
+    $$('[data-sch]').forEach(b => b.setAttribute('aria-pressed', String(pref.focus === b.dataset.sch))); };
+  $$('[data-show]').forEach(b => b.onclick = () => { const k = b.dataset.show; pref.show[k] = !pref.show[k]; LS.set('show', pref.show); if (k === 'tc') rer(`[data-show="tc"]`); else keepPlace(applyShow); });
+  $$('[data-sch]').forEach(b => b.onclick = () => { pref.focus = pref.focus === b.dataset.sch ? null : b.dataset.sch; keepPlace(applyShow); });
+  applyShow();
   annotateAll();
   if (isS || isC || isF) LS.set('last', { h: location.hash || hash(seg), code: d.code || d.label, title: (d.title || '').replace(/<[^>]+>/g, ''), notes: nn, q: nq, tc: ntc });
   observe(); warmRows();
@@ -486,7 +496,6 @@ function rowsHTML(items, tab) {
     if (it.t === 'tnote') nI++;
     if (hide(it)) continue;
     if (SIDE_T.includes(it.t)) {
-      if ((it.t === 'tnote' && !pref.show.note) || (it.t === 'q' && !pref.show.q)) continue;
       const card = it.t === 'tnote' ? noteCard(it, nI, nTot) : qCard(it);
       if (rows.length) rows[rows.length - 1].side.push(card); else rows.push({ it: { t: 'h2', id: 'b0', h: '' }, side: [card], seam: '' });
       continue;
@@ -528,7 +537,7 @@ const mkey = bid => S.cur.key + '|' + bid;
 function marksHTML(b) {
   const m = S.notes.marks[mkey(b.id)] || {};
   const p = (k, v) => (v === true ? !!m[k] : m[k] === v) ? 'true' : 'false';
-  const hasSrc = /P\d+:\d/.test(JSON.stringify(b)) && S.cur.d.src && Object.keys(S.cur.d.src).length;
+  const hasSrc = /P\d+:\d/.test(JSON.stringify(b)) && ((S.cur.d.src && Object.keys(S.cur.d.src).length) || S.cur.d.srcf);
   return `<div class="marks${m.verdict || m.key || m.move != null ? ' set' : ''}">
     <button type="button" class="mk keep" data-act="v" data-v="keep" aria-pressed="${p('verdict', 'keep')}">Keep</button><button type="button" class="mk drop" data-act="v" data-v="drop" aria-pressed="${p('verdict', 'drop')}">Drop</button>
     <button type="button" class="mk maybe" data-act="v" data-v="maybe" aria-pressed="${p('verdict', 'maybe')}">Maybe</button><button type="button" class="mk key" data-act="key" aria-pressed="${p('key', true)}">Key</button>
@@ -602,8 +611,15 @@ function srcPassage(p, set, full) {
     <button type="button" class="full" data-act="full" data-p="${esc(p)}" data-set="${[...set].join(',')}" data-full="${full ? 1 : 0}">${full ? 'Only the lines used' : 'Whole passage'}</button></div>
     <div class="fa" lang="fa">${shown.map(n => `<p class="${set.has(n) ? 'ref' : ''}" data-pn="${esc(p)}:${n}"><span class="n">${n}</span><span>${esc(P.s[n])}</span></p>`).join('')}</div></div>`;
 }
-function toggleSrc(row, refs) {
+async function toggleSrc(row, refs) {
   const old = $('.srcbox', row); if (old && !refs) { old.remove(); return false; } if (old) old.remove();
+  const cur = S.cur;
+  if (!cur.d.src && cur.d.srcf) { // the Persian passages live in a sibling file, loaded on the first Source press
+    row.insertAdjacentHTML('beforeend', '<div class="srcbox"><p class="ui muted" style="direction:ltr;text-align:right">Loading the Persian sources</p></div>');
+    try { cur.d.src = await data(cur.key + '.src.json'); } catch (e) { const b = $('.srcbox', row); if (b) b.innerHTML = `<p class="ui muted" style="direction:ltr;text-align:right">The sources could not be loaded: ${esc(e.message)}</p>`; return true; }
+    const w = $('.srcbox', row); if (w) w.remove();
+    if (S.cur !== cur || !document.contains(row)) return false;
+  }
   const want = new Map();
   (refs != null ? parseRefs(refs) : $$('.s', row).flatMap(s => parseRefs(s.dataset.r))).forEach(({ p, a, b }) => { const s = want.get(p) || new Set(); for (let i = a; i <= b; i++) s.add(i); want.set(p, s); });
   const box = document.createElement('div'); box.className = 'srcbox';
@@ -653,7 +669,7 @@ document.addEventListener('click', e => {
     if (a === 'key') return setMark(bid, m => Object.assign(m, { key: !m.key }));
     if (a === 'move') return setMark(bid, m => Object.assign(m, { move: m.move != null ? null : '' }));
     if (a === 'note') return newNote(bid, null, [], true);
-    if (a === 'src') { const on = toggleSrc(row); act.setAttribute('aria-pressed', on ? 'true' : 'false'); return; }
+    if (a === 'src') { toggleSrc(row).then(on => { if (document.contains(act)) act.setAttribute('aria-pressed', on ? 'true' : 'false'); }); return; }
     const card = act.closest('.mcard.mine'); if (!card) return; const id = card.dataset.n, n = S.notes.notes[id]; if (!n) return;
     if (a === 'tag') { const t = act.dataset.t, tags = new Set(n.tags || []); tags.has(t) ? tags.delete(t) : tags.add(t); n.tags = [...tags]; n.updated = new Date().toISOString(); queueSave(); annotateAll(n.block); return; }
     if (a === 'del') { if (ARMED[id] > Date.now()) { delete S.notes.notes[id]; delete ARMED[id]; GONE.add(id); queueSave(); annotateAll(n.block); } else { ARMED[id] = Date.now() + 3000; act.textContent = 'Sure? Press again'; setTimeout(() => { delete ARMED[id]; const c = $(`.mcard.mine[data-n="${id}"] .del`); if (c) c.textContent = 'Delete'; }, 3000); } return; }

@@ -210,8 +210,9 @@ main.read{min-width:0;padding:22px 20px 140px 0}
 .ho{font-family:var(--ui);font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-w);border-radius:5px;padding:1px 6px;margin-inline-end:6px;vertical-align:3px}
 mark{background:var(--hl);color:inherit;border-radius:3px;padding:0 1px}
 mark.on{background:var(--hl-on)}
-.sch-hide .txt .s:not(.comp){opacity:.25}
-.sch-hide .txt .s.keep-sch{opacity:1}
+.desk[data-focus] .txt .s:not(.comp){opacity:.25}
+.desk[data-focus="MM"] .txt .s[data-sch~="MM"],.desk[data-focus="AH"] .txt .s[data-sch~="AH"],.desk[data-focus="JS"] .txt .s[data-sch~="JS"],.desk[data-focus="EZ"] .txt .s[data-sch~="EZ"]{opacity:1}
+.hide-note .mcard.note,.hide-q .row .mcard.q{display:none}
 
 /* teacher-only run */
 .row.tc>.txt{background:var(--tc-w);border-inline-start:0}
