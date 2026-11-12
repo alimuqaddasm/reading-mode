@@ -55,10 +55,11 @@ const theme = LS.get('theme', ''); if (theme) document.documentElement.dataset.t
 async function load() {
   screen('loading');
   try {
-    S.index = await data('index.json');
-    try { S.audio = JSON.parse(await gh('audio/index.json', null, true, DATA)); } catch (e) { S.audio = {}; }
-    try { const j = await gh('notes.json'); S.notes = JSON.parse(b64dec(j.content)); S.notesSha = j.sha; S.notes.notes = S.notes.notes || {}; S.notes.marks = S.notes.marks || {}; }
-    catch (e) { if (e.status !== 404) throw e; }
+    const fonts = document.fonts ? Promise.race([Promise.all(['21px Gulzar', '700 21px "Noto Nastaliq Urdu"', '21px Amiri', '21px Vazirmatn', '14px Geist', '600 14px Geist'].map(f => document.fonts.load(f, 'ابپ Aa1'))).catch(() => {}), new Promise(r => setTimeout(r, 3000))]) : null;
+    const [idx, aud, j] = await Promise.all([data('index.json'), gh('audio/index.json', null, true, DATA).then(JSON.parse).catch(() => ({})), gh('notes.json').catch(e => { if (e.status !== 404) throw e; return null; }), fonts]);
+    S.index = idx; S.audio = aud || {};
+    if (j) { S.notes = JSON.parse(b64dec(j.content)); S.notesSha = j.sha; } else { S.notes = { notes: {}, marks: {} }; S.notesSha = null; }
+    S.notes.notes = S.notes.notes || {}; S.notes.marks = S.notes.marks || {};
     route();
   } catch (e) {
     if (e.status === 401 || e.status === 404) { setKey(''); connect(e.status === 404 ? 'This key cannot open hub-data and hub-notes. Make a key for those two repos (steps above) and paste it here.' : e.message); return; }
@@ -105,6 +106,12 @@ const hash = (seg, q) => '#' + seg.join('/') + (q && Object.keys(q).length ? '?'
 function go(seg, q) { const h = hash(seg, q); if (location.hash === h) route(); else location.hash = h; }
 addEventListener('hashchange', route);
 let routeGen = 0;
+function sameLesson(key, q) {
+  if (!S.cur || S.cur.key !== key || !$('.desk') || q.get('ans') || (q.get('t') || 'tc') !== S.cur.tab0) return false;
+  const b = q.get('b'), t = b && document.getElementById('r-' + b); S.cur.block = b;
+  if (t) { t.scrollIntoView({ block: 'start' }); focusRow(t); } else scrollTo(0, 0);
+  return true;
+}
 async function route() {
   if (!S.index) return;
   const g = ++routeGen, live = () => g === routeGen;
@@ -119,8 +126,9 @@ async function route() {
     if (course && !seg[1]) return courseView(course);
     if (course && seg[1] === 'papers') return await paperView(course, +seg[2], live);
     if (course && seg[2]) {
-      view.innerHTML = '<div class="loading">Loading</div>';
       const slug = /^\d+$/.test(seg[2]) ? 'S' + String(seg[2]).padStart(2, '0') : seg[2];
+      if (sameLesson(`${course.id}/B${seg[1]}/${slug}`, q)) return;
+      view.innerHTML = '<div class="loading">Loading</div>';
       const d = await data(`${course.id}/B${seg[1]}/${slug}.json`); if (!live()) return;
       return lessonView({ d, key: `${course.id}/B${seg[1]}/${slug}`, course, bab: +seg[1], tab: q.get('t') || 'tc', block: q.get('b'), ans: q.get('ans') });
     }
@@ -129,6 +137,7 @@ async function route() {
     if (atlas && !seg[2]) return atlasView(atlas, +seg[1]);
     if (atlas && seg[2] === 'atlas') { const d = await data(`${atlas.id}/B${seg[1]}/atlas.json`); if (!live()) return; return textView(d, [atlas.ur, `B${seg[1]}`, 'Atlas text'], [atlas.id, seg[1]]); }
     if (atlas) {
+      if (sameLesson(`${atlas.id}/B${seg[1]}/${seg[2]}`, q)) return;
       view.innerHTML = '<div class="loading">Loading</div>';
       const d = await data(`${atlas.id}/B${seg[1]}/${seg[2]}.json`); if (!live()) return;
       return lessonView({ d, key: `${atlas.id}/B${seg[1]}/${seg[2]}`, atlas, bab: +seg[1], tab: q.get('t') || 'tc', block: q.get('b') });
@@ -358,7 +367,7 @@ function qCard(b) {
     <button type="button" class="btn" data-act="answer" data-q="${esc(b.qid)}" style="align-self:flex-start">Answer</button></div>`;
 }
 function lessonView(L) {
-  const d = L.d; if (!L.keep && (!S.cur || S.cur.key !== L.key)) { S.curBlock = null; curSec = -1; } S.cur = L;
+  L.tab0 = L.tab0 || L.tab; const d = L.d; if (!L.keep && (!S.cur || S.cur.key !== L.key)) { S.curBlock = null; curSec = -1; } S.cur = L;
   const isS = d.kind === 'sabaq', isC = d.kind === 'class', isF = d.kind === 'fasl';
   const items = d.items || [];
   const nq = items.filter(i => i.t === 'q').length, nn = items.filter(i => i.t === 'tnote').length, ntc = items.filter(i => i.tc && !SIDE_T.includes(i.t)).length;
@@ -428,17 +437,29 @@ function lessonView(L) {
   $('#view').innerHTML = h;
   // wire
   $('#bSm').onclick = () => setFs(pref.fs - 1); $('#bLg').onclick = () => setFs(pref.fs + 1);
-  const rer = sel => { const y = scrollY; L.block = null; L.keep = true; lessonView(L); L.keep = false; scrollTo(0, y); const b = $(sel); if (b) b.focus(); };
+  const rer = sel => { // keep the paragraph at the top of the screen where it was
+    const lim = ($('#top').getBoundingClientRect().bottom || 0) + 8; let anc = null, off = 0;
+    for (const r of $$('.row[data-b]')) { const t = r.getBoundingClientRect(); if (t.bottom > lim) { anc = r.dataset.b; off = t.top; break; } }
+    L.block = null; L.keep = true; lessonView(L); L.keep = false;
+    const el = anc && document.getElementById('r-' + anc);
+    if (el) { const fix = () => scrollBy(0, el.getBoundingClientRect().top - off); fix(); requestAnimationFrame(fix); }
+    const b = $(sel); if (b) b.focus({ preventScroll: true }); };
   $$('[data-show]').forEach(b => b.onclick = () => { pref.show[b.dataset.show] = !pref.show[b.dataset.show]; LS.set('show', pref.show); rer(`[data-show="${b.dataset.show}"]`); });
   $$('[data-sch]').forEach(b => b.onclick = () => { pref.focus = pref.focus === b.dataset.sch ? null : b.dataset.sch; rer(`[data-sch="${b.dataset.sch}"]`); });
   $('.desk').classList.toggle('sch-hide', !!pref.focus);
   annotateAll();
   if (isS || isC || isF) LS.set('last', { h: location.hash || hash(seg), code: d.code || d.label, title: (d.title || '').replace(/<[^>]+>/g, ''), notes: nn, q: nq, tc: ntc });
-  observe();
+  observe(); warmRows();
   if (AU.key === L.key) { const bl = $('#bListen'); if (bl) bl.setAttribute('aria-pressed', 'true'); if (AU.lastB) sayBlock(AU.lastB, true); }
   const t = L.block && document.getElementById('r-' + L.block);
   if (t) { t.scrollIntoView({ block: 'start' }); focusRow(t); } else if (!L.keep) window.scrollTo(0, 0);
   if (L.ans && t) { const ans = L.ans; L.ans = null; history.replaceState(null, '', hash(seg, { b: L.block })); newNote(L.block, { quote: '', start: null, end: null, refs: '' }, ['answer:' + ans], true); }
+}
+const ric = window.requestIdleCallback || (f => setTimeout(() => f({ timeRemaining: () => 0 }), 60));
+function warmRows() {
+  const rows = $$('.row .txt'), g = routeGen; let i = 0;
+  const step = dl => { if (g !== routeGen) return; do { if (i >= rows.length) return; rows[i++].getBoundingClientRect(); } while (dl.timeRemaining() > 12); ric(step); };
+  ric(step);
 }
 function lesLink(L, n) {
   const b = L.course.babs.find(x => x.n === L.bab); const ls = b ? b.lessons.filter(l => l.L === n) : [];
@@ -520,7 +541,7 @@ function setMark(bid, f, cur) {
   const live = m.verdict || m.key || m.bridge || m.move != null;
   if (live) S.notes.marks[id] = Object.assign(m, { lesson: cur.key, code: cur.d.code || cur.d.label, block: bid, updated: new Date().toISOString() });
   else { delete S.notes.marks[id]; GONE.add(id); }
-  queueSave(); annotateAll();
+  queueSave(); if (cur === S.cur) annotateAll(bid);
 }
 function unwrap(el) { $$('mark', el).forEach(m => m.replaceWith(...m.childNodes)); el.normalize(); }
 function textNodes(el) { const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); const a = []; while (w.nextNode()) a.push(w.currentNode); return a; }
@@ -532,9 +553,10 @@ function wrapRange(el, start, end, nid) {
     pos += len;
   }
 }
-function annotateAll() {
+function annotateAll(only) {
   if (!S.cur) return;
-  $$('.row[data-b]').forEach(row => {
+  const one = only && document.getElementById('r-' + only);
+  (one ? [one] : $$('.row[data-b]')).forEach(row => {
     const bid = row.dataset.b, txt = $('.txt', row), nl = $('.nl', row);
     unwrap(txt);
     const mine = Object.entries(S.notes.notes).filter(([, n]) => n.lesson === S.cur.key && n.block === bid);
@@ -564,7 +586,7 @@ function renderMine(nl, mine) {
 function newNote(bid, c, tags, focus) {
   const id = 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), now = new Date().toISOString();
   S.notes.notes[id] = { lesson: S.cur.key, code: S.cur.d.code || S.cur.d.label, block: bid, quote: c ? c.quote : '', start: c ? c.start : null, end: c ? c.end : null, refs: c ? c.refs : '', text: '', tags, created: now, updated: now };
-  queueSave(); annotateAll();
+  queueSave(); annotateAll(bid);
   if (focus) requestAnimationFrame(() => { const ta = $(`.mcard.mine[data-n="${id}"] textarea`); if (ta) ta.focus(); });
 }
 
@@ -633,8 +655,8 @@ document.addEventListener('click', e => {
     if (a === 'note') return newNote(bid, null, [], true);
     if (a === 'src') { const on = toggleSrc(row); act.setAttribute('aria-pressed', on ? 'true' : 'false'); return; }
     const card = act.closest('.mcard.mine'); if (!card) return; const id = card.dataset.n, n = S.notes.notes[id]; if (!n) return;
-    if (a === 'tag') { const t = act.dataset.t, tags = new Set(n.tags || []); tags.has(t) ? tags.delete(t) : tags.add(t); n.tags = [...tags]; n.updated = new Date().toISOString(); queueSave(); annotateAll(); return; }
-    if (a === 'del') { if (ARMED[id] > Date.now()) { delete S.notes.notes[id]; delete ARMED[id]; GONE.add(id); queueSave(); annotateAll(); } else { ARMED[id] = Date.now() + 3000; act.textContent = 'Sure? Press again'; setTimeout(() => { delete ARMED[id]; const c = $(`.mcard.mine[data-n="${id}"] .del`); if (c) c.textContent = 'Delete'; }, 3000); } return; }
+    if (a === 'tag') { const t = act.dataset.t, tags = new Set(n.tags || []); tags.has(t) ? tags.delete(t) : tags.add(t); n.tags = [...tags]; n.updated = new Date().toISOString(); queueSave(); annotateAll(n.block); return; }
+    if (a === 'del') { if (ARMED[id] > Date.now()) { delete S.notes.notes[id]; delete ARMED[id]; GONE.add(id); queueSave(); annotateAll(n.block); } else { ARMED[id] = Date.now() + 3000; act.textContent = 'Sure? Press again'; setTimeout(() => { delete ARMED[id]; const c = $(`.mcard.mine[data-n="${id}"] .del`); if (c) c.textContent = 'Delete'; }, 3000); } return; }
     if (a === 'jump') { litNote(id); return; }
   }
   const lr = e.target.closest('.li[data-href]'); if (lr && !e.target.closest('a')) { location.hash = lr.dataset.href; return; }
@@ -837,8 +859,11 @@ async function myNotes(live) {
   if (q.get('v') === 'q') {
     const c = S.index.courses.find(x => x.id === q.get('c')) || S.index.courses[0];
     let h = `<div class="page" style="max-width:1000px"><div class="shead"><h2>${c.code}: every open question</h2><span>Grouped by sabaq; open one to read it in place</span></div>`;
-    for (const b of c.babs) for (const s of b.sabaq.filter(x => x.q)) {
-      const d = await data(`${c.id}/B${b.n}/S${String(s.n).padStart(2, '0')}.json`); if (live && !live()) return;
+    const list = c.babs.flatMap(b => b.sabaq.filter(x => x.q).map(s => ({ b, s })));
+    $('#view').innerHTML = '<div class="loading">Loading every open question</div>';
+    const ds = await Promise.all(list.map(({ b, s }) => data(`${c.id}/B${b.n}/S${String(s.n).padStart(2, '0')}.json`))); if (live && !live()) return;
+    for (const [k, { b, s }] of list.entries()) {
+      const d = ds[k];
       h += `<div class="panel"><h3><a href="#${c.id}/${b.n}/${s.n}?t=questions">${c.code} B${b.n} S${s.n}</a> · ${s.q}</h3>${d.items.filter(i => i.t === 'q').map(i => `<a class="rowlink" href="#${c.id}/${b.n}/${s.n}?t=questions"><span>${esc(i.qid)} · ${esc(i.title)}</span></a>`).join('')}</div>`;
     }
     $('#view').innerHTML = h + '</div>'; return;

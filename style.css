@@ -404,3 +404,7 @@ body.has-player .toast{bottom:calc(200px + env(safe-area-inset-bottom,0px))}
   .player{gap:4px;padding:6px 8px}
   body.has-player .toast{bottom:calc(250px + env(safe-area-inset-bottom,0px))}
 }
+
+/* speed: lay out only what is near the screen (Nastaliq layout is the main cost) */
+.row{content-visibility:auto;contain-intrinsic-size:auto 260px}
+.omitted>p,.doc .md>*{content-visibility:auto;contain-intrinsic-size:auto 90px}
