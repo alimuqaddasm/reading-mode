@@ -10,7 +10,7 @@ document.documentElement.style.setProperty('--accent', PAL.accent); document.doc
 (() => { const st = document.getElementById('stage'); if (st) { st.style.background = PAL.bg; st.dataset.pal = PAL.dark ? 'dark' : 'light'; } })();
 (() => { const lg = document.getElementById('legend'); if (!lg) return; const sw = (c, t, x) => `<span><i style="background:${c}"></i>${t}${x ? ` <small>(${x})</small>` : ''}</span>`;
   lg.innerHTML = sw(SOLID[1], 'Written', 'course: Teacher Copy') + sw(SOLID[2], 'In a sabaq', 'refined') + sw(SOLID[3], 'Refined, deck', 'class-ready') + sw(SOLID[4], 'Taught')
-    + `<span><i style="background:repeating-linear-gradient(0deg,${PAL.L[0]} 0 3px,${PAL.L[1]} 3px 6px)"></i>Class lesson <small>(one slab per form; pale: planned)</small></span>`
+    + `<span><i style="background:repeating-linear-gradient(0deg,${PAL.L[0]} 0 3px,${PAL.L[1]} 3px 6px)"></i>Class lesson <small>(a hall: one lit window per form made, gold dome once taught)</small></span>`
     + sw(PAL.flatA, 'Not started') + `<span><i style="background:${PAL.blkE};border:1.5px dashed ${PAL.dashP}"></i>Bab not settled <small>(dotted: old atlas Bab kept as a placeholder)</small></span>`
     + `<span><i style="background:${PAL.q};border-radius:50%"></i>Open questions</span>` + `<span><i style="background:transparent;border:1.5px dashed ${SOLID[1]}"></i>Being written</span>` + `<span><i style="background:${PAL.accentWash};border:1.5px solid ${PAL.accent}"></i>Changed today</span>`; })();
 const svg = $('#svg');
@@ -36,22 +36,23 @@ function layout() {
     for (const id of row) {
       const node = byId[id]; if (!node) continue;
       const bare = node.kind === 'Atlas' && !node.levels.some(l => l > 0), small = node.kind === 'Atlas' && !M.courses.some(c => c.atlas === id); const s = bare ? 0.4 : small ? 0.55 : 1;
-      const bl = blocksOf(node), total = bl.reduce((n, b) => n + Math.max(b.items.length, 4), 0);
-      const DW = Math.max(10, Math.min(46, Math.ceil(Math.sqrt(total) * 1.6)));
-      let bx = 0, by = 0, bh = 0, dw = 0; const placed = [];
-      for (const b of bl) {
-        const n = b.items.length, cols = n ? Math.max(2, Math.ceil(Math.sqrt(n * 1.3))) : 2, rowsS = n ? Math.ceil(n / cols) : 2;
-        const Ls = b.items.filter(it => it.Lnode).map(it => it.Lnode).sort((m, k) => m.n - k.n);   // class lessons, in teaching order
-        const rows = rowsS + (Ls.length ? 1 + Math.ceil(Ls.length / cols) : 0);
-        if (bx && bx + cols > DW) { bx = 0; by += bh + 1.4; bh = 0; }
-        placed.push({ b, x: bx, y: by, cols, rows, rowsS, Ls }); bx += cols + 1.4; bh = Math.max(bh, rows); dw = Math.max(dw, bx - 1.4);
-      }
-      const D = { node, id, x, y, w: dw * s, h: (by + bh) * s, s, small, bare, blocks: [], fresh: [] };
+      const bl = blocksOf(node);
+      /* Babs read right to left like the page: B1 at the top corner, B2 to its left on screen, row after row,
+         each row turning back where the last one ended so neighbours stay neighbours. Columns and rows are aligned. */
+      const items0 = bl.map(b => { const n = b.items.length, cols = n ? Math.max(2, Math.ceil(Math.sqrt(n * 1.3))) : 2, rowsS = n ? Math.ceil(n / cols) : 2;
+        const Ls = b.items.filter(it => it.Lnode).map(it => it.Lnode).sort((m, k) => m.n - k.n);
+        return { b, cols, rowsS, Ls, rows: rowsS + (Ls.length ? 1 + Math.ceil(Ls.length / cols) : 0) }; });
+      const per = Math.max(1, Math.min(items0.length, Math.round(Math.sqrt(items0.length * 1.15))));
+      const colW = [], rowHs = [];
+      items0.forEach((p, i) => { const r = Math.floor(i / per), j = r % 2 ? per - 1 - (i % per) : i % per; p.r = r; p.j = j; colW[j] = Math.max(colW[j] || 0, p.cols); rowHs[r] = Math.max(rowHs[r] || 0, p.rows); });
+      const G = 1.4, cu = [0], rv = [0]; colW.forEach((w, j) => { cu[j + 1] = cu[j] + w + G; }); rowHs.forEach((h, r) => { rv[r + 1] = rv[r] + h + G; });
+      const placed = items0.map(p => Object.assign(p, { x: rv[p.r], y: cu[p.j] }));
+      const D = { node, id, x, y, w: (rv[rowHs.length] - G) * s, h: (cu[colW.length] - G) * s, s, small, bare, blocks: [], fresh: [] };
       for (const p of placed) {
-        const B = { node: p.b.node, D, x: x + p.x * s, y: y + p.y * s, w: p.cols * s, h: p.rows * s, empty: !p.b.items.length, cells: [] };
+        const B = { node: p.b.node, D, x: x + p.x * s, y: y + p.y * s, w: p.rows * s, h: p.cols * s, empty: !p.b.items.length, cells: [] };
         D.blocks.push(B); blocks.push(B);
-        p.b.items.forEach((it, i) => { const c = { node: it, D, B, x: x + (p.x + (i % p.cols)) * s, y: y + (p.y + Math.floor(i / p.cols)) * s, s, lvl: it.levels[0] || 0, course: node.kind !== 'Atlas' }; cells.push(c); B.cells.push(c); });
-        p.Ls.forEach((L, j) => { const c = { node: L, D, B, isL: true, x: x + (p.x + (j % p.cols)) * s, y: y + (p.y + p.rowsS + 1 + Math.floor(j / p.cols)) * s, s, lvl: L.taught ? 4 : 1, course: true }; cells.push(c); B.cells.push(c); });
+        p.b.items.forEach((it, i) => { const c = { node: it, D, B, x: x + (p.x + Math.floor(i / p.cols)) * s, y: y + (p.y + (i % p.cols)) * s, s, lvl: it.levels[0] || 0, course: node.kind !== 'Atlas' }; cells.push(c); B.cells.push(c); });
+        p.Ls.forEach((L, j) => { const c = { node: L, D, B, isL: true, x: x + (p.x + p.rowsS + 1 + Math.floor(j / p.cols)) * s, y: y + (p.y + (j % p.cols)) * s, s, lvl: L.taught ? 4 : 1, course: true }; cells.push(c); B.cells.push(c); });
         B.rowsS = p.rowsS; B.hasL = p.Ls.length > 0;
       }
       districts.push(D); inRow.push(D); x += D.w + (node.kind === 'Atlas' && !small ? 7 : 5); rowH = Math.max(rowH, D.h);
@@ -111,7 +112,7 @@ function draw() {
         const e = edges.filter(x => x.par).reduce((m, x) => x.m[0] + x.m[1] > m.m[0] + m.m[1] ? x : m);
         const v = [e.m[0] - ct[0], e.m[1] - ct[1]], L = Math.hypot(...v) || 1, off = 0.72 * D.s, at = [e.m[0] + v[0] / L * off, e.m[1] + v[1] / L * off], [gx, gy] = P(at[0], at[1], 0);
         ground += `<text class="gnum" transform="matrix(${gm.map(v => v.toFixed(3)).join(' ')} ${gx.toFixed(1)} ${gy.toFixed(1)})" font-size="${(1.05 * D.s).toFixed(2)}" text-anchor="middle" dominant-baseline="central" font-weight="800" fill="${D.node.kind === 'Atlas' ? PAL.gnumA : PAL.gnumC}">${esc(B.node.short)}</text>`; }
-      if (B.node !== D.node && ur) babl += `<g class="blab" data-x="${bx.toFixed(1)}" data-y="${by.toFixed(1)}"><text text-anchor="middle" y="16" font-size="13.5" fill="${PAL.ink}" stroke="${PAL.halo}" stroke-width="4" paint-order="stroke" font-family="Noto Nastaliq Urdu,serif" direction="rtl">${esc(ur)}</text></g>`;
+      if (B.node !== D.node && ur) babl += `<g class="blab" data-x="${bx.toFixed(1)}" data-y="${by.toFixed(1)}"><text text-anchor="middle" y="16" font-size="14" fill="${PAL.ink}" stroke="${PAL.halo}" stroke-width="4" paint-order="stroke" font-family="Gulzar,Noto Nastaliq Urdu,serif" direction="rtl">${esc(ur)}</text></g>`;
     });
     const mid = turn(D.x + D.w / 2, D.y + D.h / 2), [lx, ly0] = P(mid[0], mid[1], 0);
     const lv = D.node.levels, n = lv.length || 1, cnt = k => lv.filter(l => l >= k).length;
@@ -130,8 +131,7 @@ function draw() {
   const order = cells.slice().sort((a, b) => (a.rx + a.ry) - (b.rx + b.ry));
   for (const c of order) {
     const w = TOWER * c.s, o = (c.s - w) / 2, fh = FLOOR * c.s; let g = '';
-    if (c.isL) { const f = Math.max(1, formsOf(c.node).length), sh = 0.42 * c.s, wl = 0.9 * c.s, ol = (c.s - wl) / 2, pal = c.node.taught ? PAL.L : PAL.Lp; let z = 0;
-      for (let k = 0; k < f; k++) { g += prism(c.rx + ol, c.ry + ol, z, sh, wl, pal[k % 2]); z += sh; } c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, z);
+    if (c.isL) { g = hall(c); 
       if (c.fresh) fresh += `<polygon class="fr" data-i="${c.i}" points="${pts([P(c.rx, c.ry, 0), P(c.rx + c.s, c.ry, 0), P(c.rx + c.s, c.ry + c.s, 0), P(c.rx, c.ry + c.s, 0)])}"/>`;
       towers.push(`<g class="c L" data-i="${c.i}">${g}</g>`);
       roofs += `<text class="lroof" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 3).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="${PAL.lroof}" stroke="${PAL.halo}" stroke-width="3" paint-order="stroke">${esc(c.node.short)}</text>`;
@@ -151,9 +151,25 @@ function draw() {
   box = { x: x0, y: y0 - 50, w: Math.max(gb.x + gb.width, tb.x + tb.width) - x0, h: Math.max(gb.y + gb.height, tb.y + tb.height) - y0 + 50 };
   const core = districts.filter(D => !D.bare).map(D => areaBox(D.x - 1, D.y - 1, D.w + 2, D.h + 2, 6 * U));
   if (core.length) { const x0 = Math.min(...core.map(b => b.x)), y0 = Math.min(...core.map(b => b.y)); boxCore = { x: x0, y: y0 - 30, w: Math.max(...core.map(b => b.x + b.w)) - x0, h: Math.max(...core.map(b => b.y + b.h)) - y0 + 30 }; } else boxCore = box;
-  apply(); paintFilter(); minimap();
+  declutter.force = true; apply(); paintFilter(); minimap();
 }
 let boxCore = null;
+/* a class lesson is a hall: eight windows, one per form (Teacher Copy, Handout, Refined, Deck, QA deck, Tafseer, Flowchart, Audio),
+   lit gold when that form is made; a gold dome once the lesson is taught, a pale outlined dome while it is only planned */
+function hall(c) {
+  const wl = 0.9 * c.s, o = (c.s - wl) / 2, x = c.rx + o, y = c.ry + o, h = 1.15 * c.s, made = new Set(formsOf(c.node).map(f => f[1]));
+  let g = prism(x, y, 0, h, wl, '#efe9dc');
+  const win = (face, k, on) => { const a = 0.1 + k * 0.215, b = a + 0.14, z0 = 0.3 * h, z1 = 0.78 * h;
+    const q = face === 'L' ? [P(x + a * wl, y + wl, z0), P(x + b * wl, y + wl, z0), P(x + b * wl, y + wl, z1), P(x + a * wl, y + wl, z1)]
+                           : [P(x + wl, y + a * wl, z0), P(x + wl, y + b * wl, z0), P(x + wl, y + b * wl, z1), P(x + wl, y + a * wl, z1)];
+    return `<polygon points="${pts(q)}" fill="${on ? PAL.L[0] : '#cfc8b8'}"${on ? '' : ' fill-opacity=".7"'}/>`; };
+  FORMS_L.forEach(([, t], i) => { g += win(i < 4 ? 'L' : 'R', i % 4, made.has(t)); });
+  const [cx, cy] = P(x + wl / 2, y + wl / 2, h), r = wl * 0.36, rx = r * 1.2247 * U, ry = r * 0.7071 * U, rd = r * 1.25 * U, t = c.node.taught;
+  g += `<path d="M${(cx - rx).toFixed(1)},${cy.toFixed(1)} A${rx.toFixed(1)},${rd.toFixed(1)} 0 0 1 ${(cx + rx).toFixed(1)},${cy.toFixed(1)} A${rx.toFixed(1)},${ry.toFixed(1)} 0 0 1 ${(cx - rx).toFixed(1)},${cy.toFixed(1)}Z" fill="${t ? PAL.L[0] : '#f7f3ea'}" stroke="${t ? shade(PAL.L[0], .8) : '#b9b09c'}" stroke-width="1" ${t ? '' : 'stroke-dasharray="2.5 2"'} vector-effect="non-scaling-stroke"/>`;
+  if (t) g += `<line x1="${cx.toFixed(1)}" y1="${(cy - rd).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${(cy - rd - 0.25 * U).toFixed(1)}" stroke="${shade(PAL.L[0], .7)}" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+  c.top = [cx, cy - rd - (t ? 0.3 * U : 0)];
+  return g;
+}
 function wire(x, y, z0, h, w, col) {   // a floor being written now: an outline, not yet filled
   const z1 = z0 + h, top = [P(x, y, z1), P(x + w, y, z1), P(x + w, y + w, z1), P(x, y + w, z1)];
   const left = [P(x, y + w, z0), P(x + w, y + w, z0), P(x + w, y + w, z1), P(x, y + w, z1)], right = [P(x + w, y, z0), P(x + w, y + w, z0), P(x + w, y + w, z1), P(x + w, y, z1)];
@@ -175,11 +191,24 @@ function apply() {
   svg.classList.toggle('z0', k > 0.9);
   const fd = focus ? districts.indexOf(focus.D) : -1;   // the district you are in shows its numbers in the panel, so its sign steps aside
   g.querySelectorAll('.sign').forEach(sg => { sg.style.display = k > 2.2 || +sg.dataset.d === fd ? 'none' : ''; });
-  unclash(g.querySelectorAll('.sign'));
+  unclash(g.querySelectorAll('.sign')); declutter();
   if (k > 1.5) fix('.blab', inv);
   if (k > 2.2) fix('.mk', inv);
   if (k > 3.4) fix('.roof', inv);
   viewport();
+}
+let lastDK = 0, dkTimer = null;
+function declutter() {   // order of importance: signs, class lesson names, Urdu Bab names, roof labels
+  if (Math.abs(cam.k - lastDK) / cam.k < 0.03 && !declutter.force) return;
+  clearTimeout(dkTimer); dkTimer = setTimeout(() => {
+    lastDK = cam.k; declutter.force = false; const g = $('#world'); if (!g) return;
+    const boxes = [], k = cam.k, hit = r => boxes.some(b => r.l < b.r && r.r > b.l && r.t < b.b && r.b > b.t);
+    g.querySelectorAll('.sign').forEach(sg => { if (sg.style.display === 'none') return; const r = sg.getBoundingClientRect(); boxes.push({ l: r.left, r: r.right, t: r.top, b: r.bottom }); });
+    for (const sel of ['.lroof', '.blab', '.roof']) g.querySelectorAll(sel).forEach(el => {
+      if (getComputedStyle(el).display === 'none') return; el.style.visibility = '';
+      const r = el.getBoundingClientRect(), bx = { l: r.left - 3, r: r.right + 3, t: r.top - 1, b: r.bottom + 1 };
+      if (r.width && hit(bx)) el.style.visibility = 'hidden'; else boxes.push(bx); });
+  }, 90);
 }
 function unclash(list) {
   const placed = [];
@@ -258,7 +287,7 @@ function chainOf(c) {
 function beams() {
   const g = $('#beams'); if (!g) return; if (!pinned) { g.innerHTML = ''; return; }
   const c = pinned, to = chainOf(c);
-  let h = `<circle cx="${c.top[0]}" cy="${c.top[1]}" r="4" fill="none" stroke="${PAL.ring}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+  let h = '';
   for (const t of to) { const [x1, y1] = c.top, [x2, y2] = t.top, mx = (x1 + x2) / 2, my = Math.min(y1, y2) - Math.hypot(x2 - x1, y2 - y1) * 0.3 - 18;
     h += `<path d="M${x1},${y1} Q${mx},${my} ${x2},${y2}" fill="none" stroke="${PAL.beam}" stroke-width="2" vector-effect="non-scaling-stroke" opacity=".9"/><circle cx="${x2}" cy="${y2}" r="3" fill="${PAL.beam}"/>`; }
   g.innerHTML = h;
