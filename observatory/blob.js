@@ -41,7 +41,7 @@ function model(w) {
     const u = use[a.id + ':' + f.id] || { lvl: 0, by: [] };
     const written = (f.al || []).some(x => x === 'built' || x === 'written');
     const lvl = Math.max(written ? 1 : 0, u.lvl);
-    return { kind: 'Fasl', code: `${a.name} B${b.n} F${f.id.split('.')[1]}`, short: 'F' + f.id.split('.')[1], ur: f.ur, size: 1, levels: [lvl], lay: ATLAS_LAY, by: u.by,
+    return { kind: 'Fasl', key: a.id + ':' + f.id, code: `${a.name} B${b.n} F${f.id.split('.')[1]}`, short: 'F' + f.id.split('.')[1], ur: f.ur, size: 1, levels: [lvl], lay: ATLAS_LAY, by: u.by, unit: 'sabaq built from it',
       wm: `${WM}#atlas?a=${a.id}&b=${b.n}`, rm: `${RM}#${a.id}/${b.n}` };
   };
   const atlases = w.atlases.map(a => {
@@ -59,8 +59,9 @@ function model(w) {
   atlases.sort((x, y) => order.indexOf(x.short.toLowerCase()) - order.indexOf(y.short.toLowerCase()));
   const courses = w.courses.map(c => {
     const babs = c.babs.map(b => {
-      const kids = b.hub.map(H => ({ kind: 'Sabaq', code: `${c.code} B${b.n} S${H.h}`, short: 'S' + H.h, ur: H.ur, size: 1, lay: COURSE_LAY,
-        levels: [H.L && H.Ls === 'taught' ? 4 : stageOf(H.has)], L: H.L ? `L${H.L} ${H.Ls}` : '', fasls: H.fasls || [],
+      const kids = b.hub.map(H => ({ kind: 'Sabaq', code: `${c.code} B${b.n} S${H.h}`, short: 'S' + H.h, ur: H.ur, size: 1, lay: COURSE_LAY, unit: 'Fasls and class lesson',
+        levels: [H.L && H.Ls === 'taught' ? 4 : stageOf(H.has)], L: H.L ? `L${H.L} ${H.Ls}` : '', fasls: H.fasls || [], fkeys: (H.fasls || []).map(u => c.atlas + ':' + u.replace(/^U/, '').split('-')[0]),
+        Lnode: H.L ? { kind: 'Class lesson', code: `${c.code} B${b.n} L${H.L}`, short: 'L' + H.L, ur: H.ur, size: 1, lay: COURSE_LAY, levels: [H.Ls === 'taught' ? 4 : stageOf(H.has)], note: H.Ls === 'taught' ? 'Taught in class' : 'Planned, not taught yet', wm: `${WM}#course?c=${c.id}&b=${b.n}&s=${c.id}-${b.n}-${H.h}`, rm: `${RM}#${c.id}/${b.n}/${H.h}` } : null,
         wm: `${WM}#course?c=${c.id}&b=${b.n}&s=${c.id}-${b.n}-${H.h}`, rm: `${RM}#${c.id}/${b.n}/${H.h}` }));
       return { kind: 'Bab', code: `${c.code} B${b.n}`, short: 'B' + b.n, ur: '', size: Math.max(1, kids.length), levels: kids.map(k => k.levels[0]), empty: !kids.length, lay: COURSE_LAY, kids,
         wm: `${WM}#course?c=${c.id}&b=${b.n}`, rm: `${RM}#${c.id}`, unit: 'sabaq', note: kids.length ? `Built on ${c.atlas} B${b.from}` : `Hub: ${b.hub_state}` };
@@ -72,8 +73,18 @@ function model(w) {
   if (w.tazzakur) { const z = w.tazzakur; const lv = s => /taught|held|given/i.test(s.state || '') ? 4 : /deck/i.test(s.state || '') ? 3 : /proof|refin/i.test(s.state || '') ? 2 : 1;
     const kids = z.sessions.map(s => ({ kind: 'Session', code: s.code, short: s.code.replace('MS-', ''), ur: s.ur, size: 1, lay: COURSE_LAY, levels: [lv(s)], note: `${s.date} · ${s.kind} · ${s.state}`, wm: `${WM}#course?c=taz`, rm: RM + '#taz' }));
     courses.push({ kind: 'Course', code: z.code, short: z.code, ur: z.ur, size: 1, levels: kids.map(k => k.levels[0]), lay: COURSE_LAY, kids, wm: `${WM}#course?c=taz`, rm: `${RM}#taz`, unit: 'sessions' }); }
+  // the chain across: a Fasl opens the sabaq built from it, a sabaq opens its Fasls and class lesson, a Bab shows its sabaq as drops
+  const leaf = n => Object.assign({}, n, { kids: undefined, drops: undefined });
+  const fIdx = {}, byF = {};
+  atlases.forEach(a => a.kids.forEach(b => b.kids.forEach(f => { fIdx[f.key] = f; })));
+  courses.forEach(c => (c.kids || []).forEach(b => (b.kids || []).forEach(sb => { (sb.fkeys || []).forEach(k => (byF[k] = byF[k] || []).push(sb)); })));
+  courses.forEach(c => (c.kids || []).forEach(b => (b.kids || []).forEach(sb => { if (!sb.fkeys) return;
+    sb.kids = sb.fkeys.map(k => fIdx[k]).filter(Boolean).map(leaf); if (sb.Lnode) sb.kids.push(sb.Lnode); })));
+  atlases.forEach(a => { a.drops = courses.filter(c => c.atlas && a.code.toLowerCase().startsWith(c.atlas)); a.kids.forEach(b => {
+    b.kids.forEach(f => { f.kids = byF[f.key] || []; });
+    b.drops = [...new Set(b.kids.flatMap(f => byF[f.key] || []))]; b.dropsHead = 'Sabaq built from this Bab'; }); });
   const all = atlases.flatMap(a => a.levels);
-  return { kind: 'Maarif', code: 'All of Maarif', short: 'Maarif', ur: 'معارف', size: all.length, levels: all, lay: ATLAS_LAY, kids: atlases, courses, unit: 'atlas Fasls', wm: WM, rm: RM };
+  return { kind: 'Maarif', code: 'All of Maarif', short: 'Maarif', ur: 'معارف', size: all.length, levels: all, lay: ATLAS_LAY, kids: atlases, courses, drops: courses, unit: 'atlases', wm: WM, rm: RM };
 }
 
 /* ---------- the shape ---------- */
@@ -157,21 +168,22 @@ function side(k) {
   if (k.by && k.by.length) h += `<div class="card"><h3>Used by</h3>${[...new Set(k.by)].map(x => `<span>${esc(x)}</span>`).join('')}</div>`;
   if (k.L) h += `<div class="card"><h3>Class lesson</h3><span>${esc(k.L)}</span></div>`;
   if (k.fasls && k.fasls.length) h += `<div class="card"><h3>Built from</h3><span>${k.fasls.map(esc).join(', ')}</span></div>`;
-  if (k.kids && k.kids.length) h += `<p class="muted">Click to go inside: ${k.kids.length} ${k.kind === 'Atlas' || (k.kind === 'Course' && k.unit === 'sabaq') ? 'Babs' : esc(k.unit || 'parts')}.</p>`;
+  if (k.kind === 'Sabaq' && k.kids && k.kids.length) { const nf = k.kids.filter(x => x.kind === 'Fasl').length; h += `<p class="muted">Click to go inside: ${nf} atlas Fasl${nf === 1 ? '' : 's'}${k.Lnode ? ' and its class lesson' : ''}.</p>`; }
+  else if (k.kids && k.kids.length) h += `<p class="muted">Click to go inside: ${k.kids.length} ${k.kind === 'Atlas' || (k.kind === 'Course' && k.unit === 'sabaq') ? 'Babs' : k.kind === 'Maarif' ? 'atlases' : esc(k.unit || 'parts')}.</p>`;
+  else if (k.kind === 'Fasl') h += `<p class="muted">No hub sabaq is built from this Fasl yet.</p>`;
   h += `<div class="links">${k.wm ? `<a class="btn" href="${esc(k.wm)}" target="wm">Open in Work Map</a>` : ''}${k.rm ? `<a class="btn" href="${esc(k.rm)}" target="rm">Read in Reading Mode</a>` : ''}</div>`;
   $('#side').innerHTML = h;
 }
-function legend() { $('#legend').innerHTML = `<b>${view.lay === ATLAS_LAY ? 'How far each Fasl went' : 'How far each lesson went'}</b>` + view.lay.map((t, i) => `<span><i style="background:${i ? `radial-gradient(circle at 40% 35%,${COL[i][0]},${COL[i][1]})` : COL[0][1]}"></i>${t}</span>`).join(''); }
+function legend() { const lay = (view.kids[0] || view).lay; $('#legend').innerHTML = `<b>${lay === ATLAS_LAY ? 'How far each Fasl went' : 'How far each lesson went'}</b>` + lay.map((t, i) => `<span><i style="background:${i ? `radial-gradient(circle at 40% 35%,${COL[i][0]},${COL[i][1]})` : COL[0][1]}"></i>${t}</span>`).join(''); }
 function dropSVG(k) {
   const f = fracs(k.levels); let s = `<svg width="54" height="54" viewBox="0 0 54 54" aria-hidden="true">`;
   for (let i = 0; i < 5; i++) { const r = i === 0 ? 24 : 4 + 20 * f[i]; if (r > 1.5) s += `<circle cx="27" cy="27" r="${r.toFixed(1)}" fill="${i ? `url(#d${i})` : COL[0][0]}" stroke="${i ? 'none' : '#a9bde3'}"/>`; }
   return s.replace('<svg', '<svg') + `<defs>${COL.map((c, i) => `<radialGradient id="d${i}" cx="45%" cy="38%"><stop offset="0" stop-color="${c[0]}"/><stop offset="1" stop-color="${c[1]}"/></radialGradient>`).join('')}</defs></svg>`;
 }
-let M = null;
+let M = null, curDrops = [];
 function drops() {
-  const el = $('#drops');
-  const list = path.length === 0 ? M.courses : path.length === 1 && view.kind === 'Atlas' ? M.courses.filter(c => c.atlas && view.code.toLowerCase().startsWith(c.atlas)) : [];
-  el.innerHTML = list.length ? `<span class="dropshead">Courses</span>` + list.map((c, i) => `<button type="button" class="drop" data-c="${M.courses.indexOf(c)}" title="${esc(c.code)}: ${pct(c)} class-ready">${dropSVG(c)}<span>${esc(c.short)}</span><small>${c.levels.length} ${esc(c.unit)}</small></button>`).join('') : '';
+  const el = $('#drops'); const list = curDrops = view.drops || [];
+  el.innerHTML = list.length ? `<span class="dropshead">${esc(view.dropsHead || 'Courses')}</span>` + list.slice(0, 14).map((c, i) => `<button type="button" class="drop" data-c="${i}" title="${esc(c.code)}">${dropSVG(c)}<span>${esc(c.kind === 'Sabaq' ? c.code.replace(/^(\w+) /, '$1 ') : c.short)}</span><small>${c.kind === 'Sabaq' ? esc(c.L || ['listed', 'Teacher Copy', 'refined', 'class-ready', 'taught'][c.levels[0]]) : c.levels.length + ' ' + esc(c.unit)}</small></button>`).join('') + (list.length > 14 ? `<small class="muted">and ${list.length - 14} more</small>` : '') : '';
 }
 function crumb() {
   const trail = [M, ...path]; $('#crumb').innerHTML = trail.map((k, i) => i === trail.length - 1 ? `<span class="cur">${esc(k.short)}</span>` : `<a data-up="${i}">${esc(k.short)}</a><span class="sep">›</span>`).join('');
@@ -196,8 +208,8 @@ svg.addEventListener('pointermove', ev => { const i = hit(ev); if (i !== hover) 
 svg.addEventListener('pointerleave', () => { hover = -1; side(view); if (!raf) raf = requestAnimationFrame(frame); });
 svg.addEventListener('click', ev => { const i = hit(ev); if (i >= 0) { const k = view.kids[i]; if (k.kids && k.kids.length) go(k); else side(k); } });
 $('#crumb').addEventListener('click', e => { const a = e.target.closest('[data-up]'); if (a) up(+a.dataset.up); });
-$('#drops').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) { const c = M.courses[+b.dataset.c]; show(c, [c]); } });
-$('#drops').addEventListener('mouseover', e => { const b = e.target.closest('[data-c]'); if (b) side(M.courses[+b.dataset.c]); });
+$('#drops').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) { const c = curDrops[+b.dataset.c]; if (c.kids && c.kids.length) show(c, [...path, c]); else side(c); } });
+$('#drops').addEventListener('mouseover', e => { const b = e.target.closest('[data-c]'); if (b) side(curDrops[+b.dataset.c]); });
 $('#drops').addEventListener('mouseleave', () => side(view));
 addEventListener('keydown', e => { if (e.key === 'Escape' && path.length) up(path.length - 1); });
 addEventListener('resize', () => { measure(); if (!raf) raf = requestAnimationFrame(frame); });
