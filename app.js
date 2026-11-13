@@ -429,8 +429,8 @@ function lessonView(L) {
   else if (L.tab === 'changes') h += changesHTML(d);
   else if (L.tab === 'questions') h += `<div class="files">${items.filter(i => i.t === 'q').map(qCard).join('')}</div>`;
   else if (!items.length) h += `<div class="doc"><div class="banner">This version could not be laid out block by block, so it is shown as written.</div><div class="md">${md(d.text)}</div></div>`;
-  else if (L.tab === 'handout' && d.kind === 'sabaq' && d.course === 'ma') {
-    // owner's ruling 2026-11-13: the Handout view stays empty until the Teacher Copy comments are applied and the Handout is written
+  else if (L.tab === 'handout' && d.kind === 'sabaq') {
+    // owner's ruling 2026-11-13 (every course): the Handout view stays empty until the Teacher Copy comments are applied and the Handout is written
     // (course/B0n/MA-B0n-Sn.handout.md, block ids h1, h2 ...); a lesson whose Handout is the fenced layer of its own text keeps showing it
     const hi = d.handout ? d.handout.items : (items.some(i => i.tc && !SIDE_T.includes(i.t)) ? items : []);
     h += hi.length ? rowsHTML(hi, 'handout') : `<div class="doc"><div class="banner">No Handout yet. The Handout is written after the owner's comments on the Teacher Copy are applied, and then shows here.</div></div>`;
