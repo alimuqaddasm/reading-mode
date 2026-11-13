@@ -332,13 +332,36 @@ function hashRead() {
 /* ---------- pointer and keys ---------- */
 let drag = null, lastClick = 0;
 const cellAt = e => { const el = document.elementFromPoint(e.clientX, e.clientY); const t = el && el.closest && el.closest('#towers .c'); return t ? cells[+t.dataset.i] : null; };
-svg.addEventListener('pointerdown', e => { if (e.button) return; e.preventDefault(); drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false, id: e.pointerId }; });
+/* gestures: one pointer drags (mouse, pen, one finger). Two or three fingers on a touch screen move the map
+   by their centre and zoom by their spread (pinch). On a trackpad: two-finger swipe moves, pinch zooms;
+   a mouse wheel zooms. Safari's own pinch events are handled too. */
+const touches = new Map(); let multi = null;
+const spread = () => { const ps = [...touches.values()], cx = ps.reduce((a, p) => a + p.x, 0) / ps.length, cy = ps.reduce((a, p) => a + p.y, 0) / ps.length;
+  return { cx, cy, d: ps.reduce((a, p) => a + Math.hypot(p.x - cx, p.y - cy), 0) / ps.length }; };
+function zoomAround(mx, my, k) { k = Math.max(0.15, Math.min(16, k)); cam.x = mx - (mx - cam.x) * (k / cam.k); cam.y = my - (my - cam.y) * (k / cam.k); cam.k = k; }
+svg.addEventListener('pointerdown', e => {
+  if (e.button) return; e.preventDefault();
+  if (e.pointerType === 'touch') { touches.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { svg.setPointerCapture(e.pointerId); } catch (x) {}
+    if (touches.size >= 2) { const r = svg.getBoundingClientRect(), g = spread(); multi = { cx: g.cx - r.left, cy: g.cy - r.top, d: g.d, k: cam.k, camx: cam.x, camy: cam.y }; drag = null; tip.hidden = true; return; } }
+  drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false, id: e.pointerId }; });
 svg.addEventListener('pointermove', e => {
-  if (drag && (e.buttons & 1) && (drag.moved || Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 4)) { if (!drag.moved) svg.setPointerCapture(drag.id); drag.moved = true; cam.x = drag.cx + e.clientX - drag.x; cam.y = drag.cy + e.clientY - drag.y; apply(); svg.classList.add('grabbing'); tip.hidden = true; return; }
-  const r = svg.parentNode.getBoundingClientRect(); showTip(cellAt(e), e.clientX - r.left, e.clientY - r.top);
+  if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (multi && touches.size >= 2) { const r = svg.getBoundingClientRect(), g = spread(), mx = g.cx - r.left, my = g.cy - r.top;
+    cam.x = multi.camx + mx - multi.cx; cam.y = multi.camy + my - multi.cy; cam.k = multi.k;   // move with the fingers' centre
+    if (multi.d > 8) zoomAround(mx, my, multi.k * g.d / multi.d);                              // and zoom by their spread
+    apply(); svg.classList.add('grabbing'); return; }
+  if (drag && (e.buttons & 1) && (drag.moved || Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 4)) { if (!drag.moved) try { svg.setPointerCapture(drag.id); } catch (x) {} drag.moved = true; cam.x = drag.cx + e.clientX - drag.x; cam.y = drag.cy + e.clientY - drag.y; apply(); svg.classList.add('grabbing'); tip.hidden = true; return; }
+  if (e.pointerType === 'mouse') { const r = svg.parentNode.getBoundingClientRect(); showTip(cellAt(e), e.clientX - r.left, e.clientY - r.top); }
 });
+const endTouch = e => { if (!touches.delete(e.pointerId)) return false;
+  if (multi) { if (touches.size >= 2) { const r = svg.getBoundingClientRect(), g = spread(); multi = { cx: g.cx - r.left, cy: g.cy - r.top, d: g.d, k: cam.k, camx: cam.x, camy: cam.y }; }
+    else if (!touches.size) { multi = null; svg.classList.remove('grabbing'); hashSet(); }
+    return true; }   // a lifted finger never counts as a click while a gesture is on
+  return false; };
+svg.addEventListener('pointercancel', e => { endTouch(e); drag = null; svg.classList.remove('grabbing'); });
 svg.addEventListener('pointerleave', () => { tip.hidden = true; });
 svg.addEventListener('pointerup', e => {
+  if (endTouch(e) || multi) { drag = null; return; }
   svg.classList.remove('grabbing'); const d = drag; drag = null; if (d && d.moved) return;
   const now = Date.now(), dbl = now - lastClick < 320; lastClick = now;
   const c = cellAt(e), el = document.elementFromPoint(e.clientX, e.clientY), sg = el && el.closest && el.closest('[data-d]');
@@ -347,8 +370,18 @@ svg.addEventListener('pointerup', e => {
   if (dbl && sg) { const b = sg.dataset.b; if (b != null) flyToBlock(blocks[+b]); else flyTo(districts[+sg.dataset.d]); return; }
   unpin();
 });
-svg.addEventListener('wheel', e => { e.preventDefault(); const r = svg.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, f = Math.exp(-e.deltaY * 0.0015), k = Math.max(0.15, Math.min(16, cam.k * f));
-  cam.x = mx - (mx - cam.x) * (k / cam.k); cam.y = my - (my - cam.y) * (k / cam.k); cam.k = k; apply(); }, { passive: false });
+let wheelEnd;
+svg.addEventListener('wheel', e => { e.preventDefault(); const r = svg.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? r.height : 1, dx = e.deltaX * unit, dy = e.deltaY * unit;
+  const mouseWheel = e.deltaMode !== 0 || (!e.deltaX && Math.abs(e.deltaY) >= 50 && Number.isInteger(e.deltaY));
+  if (e.ctrlKey) zoomAround(mx, my, cam.k * Math.exp(-dy * 0.01));          // trackpad pinch (and ctrl + wheel)
+  else if (mouseWheel && !e.shiftKey) zoomAround(mx, my, cam.k * Math.exp(-dy * 0.0015));
+  else { cam.x -= e.shiftKey && !dx ? dy : dx; cam.y -= e.shiftKey && !dx ? 0 : dy; }   // two-finger swipe moves the map
+  apply(); tip.hidden = true; clearTimeout(wheelEnd); wheelEnd = setTimeout(hashSet, 300); }, { passive: false });
+let gest = null;   // Safari on a Mac sends pinch as gesture events
+svg.addEventListener('gesturestart', e => { e.preventDefault(); gest = { k: cam.k }; });
+svg.addEventListener('gesturechange', e => { e.preventDefault(); if (!gest) return; const r = svg.getBoundingClientRect(); zoomAround(e.clientX - r.left, e.clientY - r.top, gest.k * e.scale); apply(); });
+svg.addEventListener('gestureend', e => { e.preventDefault(); gest = null; hashSet(); });
 $('#side').addEventListener('click', e => { const a = e.target.closest('[data-goto]'); if (a) { const c = byCode.get(a.dataset.goto); if (c) select(c, true); } });
 $('#crumb').addEventListener('click', e => { const a = e.target.closest('[data-up]'); if (!a) return; unpin(); if (a.dataset.up === 'd' && focus) flyTo(focus.D); else fitAll(true); });
 $('#chips').addEventListener('click', e => { const b = e.target.closest('[data-chip]'); if (!b) return; const k = b.dataset.chip; if (chips.has(k)) chips.delete(k); else chips.add(k); paintFilter(); hashSet(); });
