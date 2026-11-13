@@ -409,3 +409,30 @@ body.has-player .toast{bottom:calc(200px + env(safe-area-inset-bottom,0px))}
 /* speed: lay out only what is near the screen (Nastaliq layout is the main cost) */
 .row{content-visibility:auto;contain-intrinsic-size:auto 260px}
 .omitted>p,.doc .md>*{content-visibility:auto;contain-intrinsic-size:auto 90px}
+
+/* getting around (2026-11-13) */
+.step{display:flex;gap:6px;direction:rtl;font-family:var(--ui)}
+.step .sb{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 10px;border:1px solid var(--rule);border-radius:9px;background:var(--paper);color:var(--ink);text-decoration:none;font-size:13px;font-weight:600}
+.step .sb:hover{border-color:var(--accent-2);color:var(--accent)}
+.step .sb svg{width:14px;height:14px}
+.step .sb.off{visibility:hidden;min-width:60px}
+.conn{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 12px;align-items:center;margin-top:12px;padding-top:12px;border-top:1px dashed var(--rule);direction:ltr}
+.conn .ck{font-family:var(--ui);font-size:12px;font-weight:600;color:var(--faint);text-align:left}
+.conn .cv{display:flex;flex-wrap:wrap;gap:6px;font-family:var(--ui);font-size:12.5px;font-weight:600}
+.conn .chip.off{opacity:.6;cursor:default}
+.conn .chip.w{color:var(--accent);border:1px solid var(--rule);background:var(--paper)}
+.conn a.chip:hover{outline:1px solid currentColor}
+.rail details.rl{margin-top:14px;border-top:1px solid var(--rule);padding-top:8px}
+.rail details.rl>summary{font-family:var(--ui);font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--faint);padding:4px 10px;direction:ltr;text-align:right;text-transform:uppercase;cursor:pointer;list-style-position:inside}
+.rail a.lsn{font-size:13.5px;line-height:1.9;padding:1px 10px;gap:8px}
+.rail a.lsn b{font-family:var(--ui);font-size:11.5px;font-weight:700;color:var(--accent-2);min-width:30px;direction:ltr;text-align:right;flex:none}
+.rail a.lsn .lt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rail a.lsn i{font-style:normal;font-family:var(--ui);font-size:10.5px;font-weight:700;border-radius:5px;padding:0 5px;flex:none}
+.rail a.lsn i.l{background:var(--gold);color:#1d1405}
+.rail a.lsn i.lp{background:var(--gold-w);color:var(--gold-ink)}
+.rail a.lsn i.v{background:var(--wash);color:var(--faint)}
+.rail a.lsn.on{background:var(--accent-w);color:var(--ink);box-shadow:none}
+.rail .lsh{font-family:var(--ui);font-size:11px;color:var(--faint);padding:8px 10px 2px;direction:ltr;text-align:right}
+@media (max-width:640px){.step .sb span{display:none}}
+.top1 .crumb:has(+ .step){flex:0 1 auto}
+.top1 .step{margin-inline-end:auto}
