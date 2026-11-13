@@ -726,9 +726,10 @@ function renderMine(nl, mine) {
   for (const [id, n] of mine) {
     let c = $(`.mcard.mine[data-n="${id}"]`, nl);
     if (!c) { c = document.createElement('div'); c.className = 'mcard mine'; c.dataset.n = id;
-      c.innerHTML = `<span class="mh"><span>My note</span><span>${esc((n.created || '').slice(0, 10))}</span></span>${n.quote ? `<q data-act="jump">${esc(n.quote)}</q>` : ''}<textarea data-act="text" rows="2" placeholder="Write here" aria-label="Note"></textarea><div class="tags"></div>`;
+      c.innerHTML = `<span class="mh"><span>My note</span><button type="button" class="fold" data-act="fold"></button><span>${esc((n.created || '').slice(0, 10))}</span></span><span class="fs" data-act="fold"></span>${n.quote ? `<q data-act="jump">${esc(n.quote)}</q>` : ''}<textarea data-act="text" rows="2" placeholder="Write here" aria-label="Note"></textarea><div class="tags"></div>`;
       nl.append(c); }
     const ta = $('textarea', c); if (document.activeElement !== ta) { ta.value = n.text || ''; grow(ta); }
+    c.classList.toggle('folded', !!n.folded); $('.fold', c).textContent = n.folded ? 'Open' : 'Fold'; $('.fs', c).textContent = n.folded ? ((n.text || n.quote || '').replace(/\s+/g, ' ').slice(0, 70) + ((n.text || n.quote || '').length > 70 ? '…' : '')) : '';
     $('.tags', c).innerHTML = Object.entries(TAGS).map(([t, l]) => `<button type="button" class="tag" data-act="tag" data-t="${t}" aria-pressed="${(n.tags || []).includes(t)}">${l}</button>`).join('') + '<button type="button" class="tag del" data-act="del">' + (ARMED[id] > Date.now() ? 'Sure? Press again' : 'Delete') + '</button>';
   }
 }
@@ -812,6 +813,7 @@ document.addEventListener('click', e => {
     if (a === 'src') { toggleSrc(row).then(on => { if (document.contains(act)) act.setAttribute('aria-pressed', on ? 'true' : 'false'); }); return; }
     const card = act.closest('.mcard.mine'); if (!card) return; const id = card.dataset.n, n = S.notes.notes[id]; if (!n) return;
     if (a === 'tag') { const t = act.dataset.t, tags = new Set(n.tags || []); tags.has(t) ? tags.delete(t) : tags.add(t); n.tags = [...tags]; n.updated = new Date().toISOString(); queueSave(); annotateAll(n.block); return; }
+    if (a === 'fold') { n.folded = !n.folded; n.updated = new Date().toISOString(); queueSave(); annotateAll(n.block); return; }
     if (a === 'del') { if (ARMED[id] > Date.now()) { delete S.notes.notes[id]; delete ARMED[id]; GONE.add(id); queueSave(); annotateAll(n.block); } else { ARMED[id] = Date.now() + 3000; act.textContent = 'Sure? Press again'; setTimeout(() => { delete ARMED[id]; const c = $(`.mcard.mine[data-n="${id}"] .del`); if (c) c.textContent = 'Delete'; }, 3000); } return; }
     if (a === 'jump') { litNote(id); return; }
   }
