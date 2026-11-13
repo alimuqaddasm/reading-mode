@@ -5,7 +5,7 @@
    moves anything), turn in quarter steps. Positions never change, so the city stays learnable. */
 (function () {
 'use strict';
-const { $, esc, SOLID, ATLAS_LAY, reduced } = window.OBS;
+const { $, esc, SOLID, ATLAS_LAY, reduced, stageOf } = window.OBS;
 const svg = $('#svg');
 let M = null, rot = 0, cells = [], districts = [], blocks = [], roads = [], W = 0, H = 0;
 let pinned = null, focus = null, cam = { x: 0, y: 0, k: 1 }, box = { x: 0, y: 0, w: 1, h: 1 };
@@ -33,15 +33,19 @@ function layout() {
       const DW = Math.max(10, Math.min(46, Math.ceil(Math.sqrt(total) * 1.6)));
       let bx = 0, by = 0, bh = 0, dw = 0; const placed = [];
       for (const b of bl) {
-        const n = b.items.length, cols = n ? Math.max(2, Math.ceil(Math.sqrt(n * 1.3))) : 2, rows = n ? Math.ceil(n / cols) : 2;
+        const n = b.items.length, cols = n ? Math.max(2, Math.ceil(Math.sqrt(n * 1.3))) : 2, rowsS = n ? Math.ceil(n / cols) : 2;
+        const Ls = b.items.filter(it => it.Lnode).map(it => it.Lnode).sort((m, k) => m.n - k.n);   // class lessons, in teaching order
+        const rows = rowsS + (Ls.length ? 1 + Math.ceil(Ls.length / cols) : 0);
         if (bx && bx + cols > DW) { bx = 0; by += bh + 1.4; bh = 0; }
-        placed.push({ b, x: bx, y: by, cols, rows }); bx += cols + 1.4; bh = Math.max(bh, rows); dw = Math.max(dw, bx - 1.4);
+        placed.push({ b, x: bx, y: by, cols, rows, rowsS, Ls }); bx += cols + 1.4; bh = Math.max(bh, rows); dw = Math.max(dw, bx - 1.4);
       }
       const D = { node, id, x, y, w: dw * s, h: (by + bh) * s, s, small, blocks: [] };
       for (const p of placed) {
         const B = { node: p.b.node, D, x: x + p.x * s, y: y + p.y * s, w: p.cols * s, h: p.rows * s, empty: !p.b.items.length, cells: [] };
         D.blocks.push(B); blocks.push(B);
         p.b.items.forEach((it, i) => { const c = { node: it, D, B, x: x + (p.x + (i % p.cols)) * s, y: y + (p.y + Math.floor(i / p.cols)) * s, s, lvl: it.levels[0] || 0, course: node.kind !== 'Atlas' }; cells.push(c); B.cells.push(c); });
+        p.Ls.forEach((L, j) => { const c = { node: L, D, B, isL: true, x: x + (p.x + (j % p.cols)) * s, y: y + (p.y + p.rowsS + 1 + Math.floor(j / p.cols)) * s, s, lvl: L.taught ? 4 : 1, course: true }; cells.push(c); B.cells.push(c); });
+        B.rowsS = p.rowsS; B.hasL = p.Ls.length > 0;
       }
       districts.push(D); inRow.push(D); x += D.w + (node.kind === 'Atlas' && !small ? 7 : 5); rowH = Math.max(rowH, D.h);
     }
@@ -51,8 +55,12 @@ function layout() {
   W = Math.max(...districts.map(d => d.x + d.w)); H = Math.max(...districts.map(d => d.y + d.h));
   cells.forEach((c, i) => { c.i = i; c.props = props(c); });
 }
+const FORMS_L = [['tc', 'Teacher Copy'], ['handout', 'Handout'], [['refined', 'proof'], 'Refined'], [['main', 'extra'], 'Deck'], ['qa', 'QA deck'], ['tafseer', 'Tafseer'], ['flow', 'Flowchart'], ['audio', 'Audio']];
+const formsOf = n => { const h = new Set(n.has || []); return FORMS_L.filter(([k]) => (Array.isArray(k) ? k : [k]).some(x => h.has(x))); };
 function props(c) {
   const n = c.node, l = c.lvl, atlas = !c.course;
+  if (c.isL) { const s = n.sab || {}, f = formsOf(n); return { written: true, sabaq: true, refined: f.some(x => x[1] === 'Refined'), taught: n.taught, ready: !n.taught && f.some(x => x[1] === 'Deck'), q: (s.q || 0) > 0, mentor: !!s.mentor, revising: !!(s.mentor && s.mentor.status === 'revising') }; }
+  if (n.kind === 'Sabaq') { const st = stageOf(n.has); return { written: st >= 1, sabaq: true, refined: st >= 2, taught: false, ready: false, q: (n.q || 0) > 0, mentor: !!n.mentor, revising: !!(n.mentor && n.mentor.status === 'revising') }; }
   return { written: l >= 1, sabaq: atlas ? l >= 2 : n.kind === 'Sabaq', refined: atlas ? l >= 3 : l >= 2, taught: l >= 4,
     ready: atlas ? l === 3 : l >= 2 && l < 4, q: (n.q || 0) > 0, mentor: !!n.mentor, revising: !!(n.mentor && n.mentor.status === 'revising') };
 }
@@ -71,21 +79,31 @@ function prism(x, y, z0, h, w, col) {
 }
 const STEP_A = ['in the atlas plan', 'Fasl lesson written', 'used in a hub sabaq', 'refined, deck made', 'taught in class'];
 const STEP_C = ['listed in the hub', 'Teacher Copy written', 'refined and proofed', 'class-ready, deck made', 'taught in class'];
-const stepOf = c => (c.course ? STEP_C : STEP_A)[c.lvl];
+const stepOf = c => c.isL ? `class lesson, ${c.node.taught ? 'taught' : 'planned'}, ${formsOf(c.node).length} forms made` : c.node.kind === 'Sabaq' ? ['listed in the hub', 'Teacher Copy written', 'refined'][Math.min(2, stageOf(c.node.has))] + (c.node.Lnode ? `, became ${c.node.Lnode.short}` : '') : (c.course ? STEP_C : STEP_A)[c.lvl];
 
 /* ---------- drawing ---------- */
 function draw() {
+  byNodeTmp = new Map(cells.map(c => [c.node, c]));
   let ground = '', towers = [], signs = '', babl = '', roofs = '', marks = '';
   for (const R of roads) {
     const a = R.a, b = R.b, y0 = b.y + Math.min(b.h, a.h) / 2;
     ground += `<polygon points="${rectPoly(a.x + a.w + .6, y0 - .7, b.x - a.x - a.w - 1.2, 1.4)}" fill="#e6e1d2"/><polygon points="${rectPoly(a.x + a.w + .6, y0 - .07, b.x - a.x - a.w - 1.2, .14)}" fill="#fffdf8"/>`;
   }
+  const gm = groundMatrix();
   districts.forEach((D, di) => {
     ground += `<polygon class="dist" data-d="${di}" points="${rectPoly(D.x - .6, D.y - .6, D.w + 1.2, D.h + 1.2)}" fill="${D.node.kind === 'Atlas' ? '#e8edf7' : '#e2f1ee'}" stroke="#d3d9e4"/>`;
     D.blocks.forEach(B => {
       ground += `<polygon class="blk" data-d="${di}" data-b="${blocks.indexOf(B)}" points="${rectPoly(B.x - .15 * D.s, B.y - .15 * D.s, B.w + .3 * D.s, B.h + .3 * D.s)}" fill="${B.empty ? '#f1efe7' : D.node.kind === 'Atlas' ? '#dde5f3' : '#d5ebe6'}"/>`;
       const f = frontOf(B.x, B.y, B.w, B.h), [bx, by] = P(f[0] + .2, f[1] + .2, 0);
       const ur = B.node.ur ? (B.node.ur.length > 26 ? B.node.ur.slice(0, 25) + '…' : B.node.ur) : '';
+      if (B.node !== D.node) {   // the Bab number lies flat in the street along the block's front edge, where no plot covers it
+        const ax = gm, cx = B.x + B.w / 2, cy = B.y + B.h / 2, ct = turn(cx, cy);
+        const edges = [[[B.x, B.y + B.h], [B.x + B.w, B.y + B.h]], [[B.x, B.y], [B.x + B.w, B.y]], [[B.x, B.y], [B.x, B.y + B.h]], [[B.x + B.w, B.y], [B.x + B.w, B.y + B.h]]].map(([p1, p2]) => {
+          const t1 = turn(...p1), t2 = turn(...p2), s1 = P(t1[0], t1[1], 0), s2 = P(t2[0], t2[1], 0), dx = s2[0] - s1[0], dy = s2[1] - s1[1];
+          return { m: [(t1[0] + t2[0]) / 2, (t1[1] + t2[1]) / 2], par: Math.abs(dx * ax[1] - dy * ax[0]) < 1e-3 * Math.hypot(dx, dy) * Math.hypot(ax[0], ax[1]) + 1e-9 }; });
+        const e = edges.filter(x => x.par).reduce((m, x) => x.m[0] + x.m[1] > m.m[0] + m.m[1] ? x : m);
+        const v = [e.m[0] - ct[0], e.m[1] - ct[1]], L = Math.hypot(...v) || 1, off = 0.72 * D.s, at = [e.m[0] + v[0] / L * off, e.m[1] + v[1] / L * off], [gx, gy] = P(at[0], at[1], 0);
+        ground += `<text class="gnum" transform="matrix(${gm.map(v => v.toFixed(3)).join(' ')} ${gx.toFixed(1)} ${gy.toFixed(1)})" font-size="${(1.05 * D.s).toFixed(2)}" text-anchor="middle" dominant-baseline="central" font-weight="800" fill="${D.node.kind === 'Atlas' ? '#7f93bd' : '#5aa597'}">${esc(B.node.short)}</text>`; }
       if (B.node !== D.node) babl += `<g class="blab" data-x="${bx.toFixed(1)}" data-y="${by.toFixed(1)}"><text text-anchor="middle" y="9" font-size="11" font-weight="700" fill="#4f5753" stroke="#fffdf8" stroke-width="3" paint-order="stroke">${esc(B.node.short)}</text>${ur ? `<text text-anchor="middle" y="24" font-size="10.5" fill="#6b736f" stroke="#fffdf8" stroke-width="3" paint-order="stroke" font-family="Noto Nastaliq Urdu,serif" direction="rtl">${esc(ur)}</text>` : ''}</g>`;
     });
     const mid = turn(D.x + D.w / 2, D.y + D.h / 2), [lx, ly0] = P(mid[0], mid[1], 0);
@@ -98,17 +116,26 @@ function draw() {
     signs += `<g class="sign" data-d="${di}" data-x="${lx.toFixed(1)}" data-y="${(ly0 - 30).toFixed(1)}"><line x1="0" y1="32" x2="0" y2="44" stroke="#b9c4bf" stroke-width="1.5"/><rect x="${-wpx / 2}" y="-20" width="${wpx}" height="${lv.length ? 52 : 44}" rx="10" fill="#fffdf8" fill-opacity=".95" stroke="${D.node.kind === 'Atlas' ? '#c3d2ee' : '#a8d8cf'}"/><text text-anchor="middle" y="-3" font-size="15" font-weight="700" fill="${D.node.kind === 'Atlas' ? '#2a5bb8' : '#0b7a70'}">${esc(nm)}</text><text text-anchor="middle" y="13" font-size="11.5" fill="#6b736f">${esc(line)}</text>${barH}</g>`;
   });
   cells.forEach(c => { const [x, y] = turn(c.x + c.s / 2, c.y + c.s / 2); c.rx = x - c.s / 2; c.ry = y - c.s / 2; });
+  let paths = '';
+  for (const c of cells) if (c.isL) { const sc = byNodeTmp.get(c.node.sab); if (!sc) continue; const a = P(sc.rx + sc.s / 2, sc.ry + sc.s / 2, 0), b = P(c.rx + c.s / 2, c.ry + c.s / 2, 0);
+    paths += `<path d="M${a[0].toFixed(1)},${a[1].toFixed(1)} L${b[0].toFixed(1)},${b[1].toFixed(1)}" stroke="${c.node.taught ? '#d99a1e' : '#e5c27a'}" stroke-width="2" ${c.node.taught ? '' : 'stroke-dasharray="4 3"'} vector-effect="non-scaling-stroke" stroke-linecap="round" opacity=".9"/>`; }
   const order = cells.slice().sort((a, b) => (a.rx + a.ry) - (b.rx + b.ry));
   for (const c of order) {
     const w = TOWER * c.s, o = (c.s - w) / 2, fh = FLOOR * c.s; let g = '';
-    if (!c.lvl) { g = `<polygon points="${pts([P(c.rx + o, c.ry + o, 0), P(c.rx + o + w, c.ry + o, 0), P(c.rx + o + w, c.ry + o + w, 0), P(c.rx + o, c.ry + o + w, 0)])}" fill="${c.course ? '#bfd9d3' : '#c9d4ea'}"/>`; c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, 0); }
-    else { let z = 0; for (let f = 1; f <= c.lvl; f++) { g += prism(c.rx + o, c.ry + o, z, fh, w, SOLID[f]); z += fh; } c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, z); }
+    if (c.isL) { const f = Math.max(1, formsOf(c.node).length), sh = 0.42 * c.s, wl = 0.9 * c.s, ol = (c.s - wl) / 2, pal = c.node.taught ? ['#d99a1e', '#e8b54e'] : ['#efd59a', '#f6e3b8']; let z = 0;
+      for (let k = 0; k < f; k++) { g += prism(c.rx + ol, c.ry + ol, z, sh, wl, pal[k % 2]); z += sh; } c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, z);
+      towers.push(`<g class="c L" data-i="${c.i}">${g}</g>`);
+      roofs += `<text class="lroof" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 3).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#7a4f00" stroke="#fffdf8" stroke-width="3" paint-order="stroke">${esc(c.node.short)}</text>`;
+      continue; }
+    const lv = c.node.kind === 'Sabaq' ? Math.min(2, stageOf(c.node.has)) : c.lvl;
+    if (!lv) { g = `<polygon points="${pts([P(c.rx + o, c.ry + o, 0), P(c.rx + o + w, c.ry + o, 0), P(c.rx + o + w, c.ry + o + w, 0), P(c.rx + o, c.ry + o + w, 0)])}" fill="${c.course ? '#bfd9d3' : '#c9d4ea'}"/>`; c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, 0); }
+    else { let z = 0; for (let f = 1; f <= lv; f++) { g += prism(c.rx + o, c.ry + o, z, fh, w, SOLID[f]); z += fh; } c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, z); }
     towers.push(`<g class="c" data-i="${c.i}">${g}</g>`);
-    if (c.lvl >= 1) roofs += `<text class="roof" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 2).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#1d211f" stroke="#fffdf8" stroke-width="2.5" paint-order="stroke">${esc(c.node.short)}</text>`;
+    if (lv >= 1) roofs += `<text class="roof" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 2).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#1d211f" stroke="#fffdf8" stroke-width="2.5" paint-order="stroke">${esc(c.node.short)}</text>`;
     if (c.props.q) marks += `<circle class="mk" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 4).toFixed(1)}" r="3.4" fill="#b4382a" stroke="#fff" stroke-width="1"/>`;
     if (c.node.mentor) { const col = { 'with mentor': '#2a5bb8', revising: '#b4382a', final: '#2c7a35' }[c.node.mentor.status] || '#6b736f'; marks += `<g class="mk flag" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 2).toFixed(1)}"><line x1="0" y1="0" x2="0" y2="-12" stroke="#1d211f" stroke-width="1"/><path d="M0,-12 L8,-9 L0,-6Z" fill="${col}"/></g>`; }
   }
-  svg.innerHTML = `<g id="world"><g id="ground">${ground}</g><g id="towers">${towers.join('')}</g><g id="beams"></g><g id="babl">${babl}</g><g id="roofs">${roofs}</g><g id="marks">${marks}</g><g id="signs">${signs}</g></g>`;
+  svg.innerHTML = `<g id="world"><g id="ground">${ground}</g><g id="paths">${paths}</g><g id="towers">${towers.join('')}</g><g id="beams"></g><g id="babl">${babl}</g><g id="roofs">${roofs}</g><g id="marks">${marks}</g><g id="signs">${signs}</g></g>`;
   const gb = $('#ground').getBBox(), tb = $('#towers').getBBox(), x0 = Math.min(gb.x, tb.x), y0 = Math.min(gb.y, tb.y);
   box = { x: x0, y: y0 - 50, w: Math.max(gb.x + gb.width, tb.x + tb.width) - x0, h: Math.max(gb.y + gb.height, tb.y + tb.height) - y0 + 50 };
   apply(); paintFilter(); minimap();
@@ -122,6 +149,8 @@ function apply() {
   svg.classList.toggle('z1', k > 1.5); svg.classList.toggle('z2', k > 2.2); svg.classList.toggle('z3', k > 3.4);
   const fix = (sel, s) => g.querySelectorAll(sel).forEach(l => l.setAttribute('transform', `translate(${l.dataset.x},${l.dataset.y}) scale(${s.toFixed(4)})`));
   fix('.sign', Math.min(1.1, inv * 0.95));
+  if (k > 0.9) fix('.lroof', Math.min(1.3, inv * 1.1));
+  svg.classList.toggle('z0', k > 0.9);
   const fd = focus ? districts.indexOf(focus.D) : -1;   // the district you are in shows its numbers in the panel, so its sign steps aside
   g.querySelectorAll('.sign').forEach(sg => { sg.style.display = k > 2.2 || +sg.dataset.d === fd ? 'none' : ''; });
   if (k > 1.5) fix('.blab', inv);
@@ -183,7 +212,8 @@ let byKey = new Map(), byNode = new Map(), byCode = new Map();
 function index() { byKey = new Map(); byNode = new Map(); byCode = new Map(); cells.forEach(c => { byNode.set(c.node, c); byCode.set(c.node.code, c); if (c.node.key) byKey.set(c.node.key, c); }); }
 function chainOf(c) {
   const n = c.node; if (n.kind === 'Fasl') return (n.kids || []).map(s => byNode.get(s)).filter(Boolean);
-  if (n.kind === 'Sabaq') return (n.fkeys || []).map(k => byKey.get(k)).filter(Boolean); return [];
+  if (n.kind === 'Sabaq') return [...(n.fkeys || []).map(k => byKey.get(k)), n.Lnode && byNode.get(n.Lnode)].filter(Boolean);
+  if (c.isL) return [byNode.get(n.sab)].filter(Boolean); return [];
 }
 function beams() {
   const g = $('#beams'); if (!g) return; if (!pinned) { g.innerHTML = ''; return; }
@@ -215,14 +245,16 @@ function panel(c) {
       <div class="links">${node.wm ? `<a class="btn" href="${esc(node.wm)}" target="wm">Open in Work Map</a>` : ''}${node.rm ? `<a class="btn" href="${esc(node.rm)}" target="rm">Read in Reading Mode</a>` : ''}</div>`;
     return;
   }
+  if (c.isL) return panelL(c);
   const n = c.node, steps = c.course ? STEP_C : STEP_A;
   let h = `<span class="kind">${esc(n.kind)}${c.course ? '' : ' · atlas'}</span><h2>${esc(n.code)}</h2>${n.ur ? `<div class="ur" lang="ur" dir="rtl">${esc(n.ur)}</div>` : ''}`;
   const link = (t, code) => code && byCode.has(code) ? `<a data-goto="${esc(code)}">${esc(t)}</a>` : `<span>${esc(t)}</span>`;
   let chain = [];
   if (n.kind === 'Fasl') { const ss = n.kids || []; chain = [`<b>${esc(n.short)}</b>`, ss.length ? ss.map(s => link(s.code, s.code)).join('<br>') : '<span class="none">no sabaq yet</span>', ss.filter(s => s.L).map(s => `<span>${esc(s.L)}</span>`).join('<br>') || '<span class="none">none</span>']; }
-  else if (n.kind === 'Sabaq') { const fs = chainOf(c); chain = [fs.length ? fs.map(f => link(f.node.code, f.node.code)).join('<br>') : '<span class="none">none listed</span>', `<b>${esc(n.short)}</b>`, n.L ? `<span>${esc(n.L)}</span>` : '<span class="none">not yet</span>']; }
+  else if (n.kind === 'Sabaq') { const fs = chainOf(c).filter(x => !x.isL); chain = [fs.length ? fs.map(f => link(f.node.code, f.node.code)).join('<br>') : '<span class="none">none listed</span>', `<b>${esc(n.short)}</b>`, n.L ? `<span>${esc(n.L)}</span>` : '<span class="none">not yet</span>']; }
   if (chain.length) h += `<div class="chain"><span class="ck">Atlas Fasl</span><span class="ck">Hub sabaq</span><span class="ck">Class lesson</span>${chain.map(x => `<span class="cv">${x}</span>`).join('')}</div>`;
-  h += `<div class="ladder">${steps.map((t, i) => `<div class="${i <= c.lvl ? 'on' : ''}"><i style="background:${i <= c.lvl ? SOLID[i] : '#e7e5dc'}"></i>${t}</div>`).join('')}</div>`;
+  if (n.kind === 'Sabaq') { const st = Math.min(2, stageOf(n.has)); h += `<div class="ladder">${['Listed in the hub', 'Teacher Copy written', 'Refined'].map((t, i) => `<div class="${i <= st ? 'on' : ''}"><i style="background:${i <= st ? SOLID[i] : '#e7e5dc'}"></i>${t}</div>`).join('')}<div class="${n.Lnode ? 'on' : ''}"><i style="background:${n.Lnode ? (n.Lnode.taught ? '#d99a1e' : '#efd59a') : '#e7e5dc'}"></i>${n.Lnode ? `Became class lesson ${esc(n.Lnode.short)} (${n.Lnode.taught ? 'taught' : 'planned'})` : 'Not a class lesson yet'}</div></div>`; }
+  else h += `<div class="ladder">${steps.map((t, i) => `<div class="${i <= c.lvl ? 'on' : ''}"><i style="background:${i <= c.lvl ? SOLID[i] : '#e7e5dc'}"></i>${t}</div>`).join('')}</div>`;
   if (n.has) { const has = new Set(n.has); h += `<div class="card"><h3>Forms</h3><div class="forms">${FORMS.map(([k, t]) => { const on = (Array.isArray(k) ? k : [k]).some(x => has.has(x)); return `<span class="form${on ? ' on' : ''}">${on ? '✓ ' : ''}${t}</span>`; }).join('')}</div>${n.rm ? `<a class="small" href="${esc(n.rm)}?t=files" target="rm">Open the files in Reading Mode</a>` : ''}</div>`; }
   if (n.q || n.notes) h += `<div class="card"><h3>Waiting on you</h3>${n.q ? `<div class="r"><span>Open questions</span><b class="red">${n.q}</b></div>` : ''}${n.notes ? `<div class="r"><span>Editor notes</span><b>${n.notes}</b></div>` : ''}${n.q && n.rm ? `<a class="small" href="${esc(n.rm)}?t=questions" target="rm">Answer them in Reading Mode</a>` : ''}</div>`;
   if (n.mentor) h += `<div class="card"><h3>Mentor</h3><div class="r"><span>${esc(n.mentor.status)}${n.mentor.round ? ', round ' + n.mentor.round : ''}</span><b>${esc((n.mentor.updated || '').slice(0, 10))}</b></div>${n.mentor.note ? `<p class="muted">${esc(n.mentor.note)}</p>` : ''}</div>`;
@@ -231,6 +263,28 @@ function panel(c) {
   h += `<p class="keys">← → next in this Bab · [ ] along the chain · Esc to let go</p>`;
   el.innerHTML = h;
 }
+
+function panelL(c) {
+  const n = c.node, s = n.sab || {}, fs = chainOf(byNode.get(s) || c).filter(x => !x.isL), forms = new Set(formsOf(n).map(x => x[1]));
+  const link = (t, code) => byCode.has(code) ? `<a data-goto="${esc(code)}">${esc(t)}</a>` : `<span>${esc(t)}</span>`;
+  let h = `<span class="kind">Class lesson</span><h2>${esc(n.code)}</h2>${n.ur ? `<div class="ur" lang="ur" dir="rtl">${esc(n.ur)}</div>` : ''}`;
+  h += `<div class="chain"><span class="ck">Atlas Fasl</span><span class="ck">Hub sabaq</span><span class="ck">Class lesson</span><span class="cv">${fs.length ? fs.map(f => link(f.node.code, f.node.code)).join('<br>') : '<span class="none">none listed</span>'}</span><span class="cv">${link(s.short || '', s.code || '')}</span><span class="cv"><b>${esc(n.short)}</b></span></div>`;
+  h += `<div class="card"><h3>${n.taught ? 'Taught in class' : 'Planned, not taught yet'}</h3><span class="muted">The building grows one slab for each form made.</span><div class="forms">${FORMS_L.map(([, t]) => `<span class="form${forms.has(t) ? ' on' : ''}">${forms.has(t) ? '✓ ' : ''}${t}</span>`).join('')}</div>${n.rm ? `<a class="small" href="${esc(n.rm)}?t=files" target="rm">Open the files in Reading Mode</a>` : ''}</div>`;
+  if (s.q) h += `<div class="card"><h3>Waiting on you</h3><div class="r"><span>Open questions on ${esc(s.short)}</span><b class="red">${s.q}</b></div></div>`;
+  h += `<div class="links">${n.wm ? `<a class="btn" href="${esc(n.wm)}" target="wm">Open in Work Map</a>` : ''}${n.rm ? `<a class="btn" href="${esc(n.rm)}" target="rm">Read in Reading Mode</a>` : ''}</div><p class="keys">← → next in this Bab · [ ] along the chain · Esc to let go</p>`;
+  $('#side').innerHTML = h;
+}
+/* the ground's own axes, so Bab numbers lie flat on their plates and read left to right whichever way the city is turned */
+function groundMatrix() {
+  const o = P(...turn(0, 0), 0), ex = P(...turn(1, 0), 0), ey = P(...turn(0, 1), 0);
+  const ax = [ex[0] - o[0], ex[1] - o[1]], ay = [ey[0] - o[0], ey[1] - o[1]];
+  const cand = [ax, ay, [-ax[0], -ax[1]], [-ay[0], -ay[1]]];
+  const a = cand.reduce((m, v) => v[0] > m[0] ? v : m);
+  const other = Math.abs(a[0] * ax[1] - a[1] * ax[0]) < 1e-6 ? ay : ax;
+  let d = other; if (a[0] * d[1] - a[1] * d[0] < 0) d = [-d[0], -d[1]];
+  return [a[0], a[1], d[0], d[1]];
+}
+let byNodeTmp = new Map();
 
 /* ---------- tooltip ---------- */
 const tip = $('#tip');
@@ -271,7 +325,7 @@ function hashRead() {
 /* ---------- pointer and keys ---------- */
 let drag = null, lastClick = 0;
 const cellAt = e => { const el = document.elementFromPoint(e.clientX, e.clientY); const t = el && el.closest && el.closest('#towers .c'); return t ? cells[+t.dataset.i] : null; };
-svg.addEventListener('pointerdown', e => { if (e.button) return; drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false, id: e.pointerId }; });
+svg.addEventListener('pointerdown', e => { if (e.button) return; e.preventDefault(); drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false, id: e.pointerId }; });
 svg.addEventListener('pointermove', e => {
   if (drag && (e.buttons & 1) && (drag.moved || Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 4)) { if (!drag.moved) svg.setPointerCapture(drag.id); drag.moved = true; cam.x = drag.cx + e.clientX - drag.x; cam.y = drag.cy + e.clientY - drag.y; apply(); svg.classList.add('grabbing'); tip.hidden = true; return; }
   const r = svg.parentNode.getBoundingClientRect(); showTip(cellAt(e), e.clientX - r.left, e.clientY - r.top);

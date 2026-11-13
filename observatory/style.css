@@ -129,3 +129,10 @@ kbd{font-family:var(--ui);font-size:11.5px;border:1px solid var(--rule);border-b
 .rows .mini{height:4px;border-radius:2px;background:#ecebe3;overflow:hidden;margin:-2px 0 4px}
 .rows .mini span{display:block;height:100%}
 @media (max-width:900px){.search{max-width:none;order:3;flex-basis:100%}.minimap{display:none}.legend{max-width:calc(100% - 32px)}}
+
+/* city v3: class lesson street, Bab numbers on the ground, no text selection while moving */
+.stage,.stage *{-webkit-user-select:none;user-select:none}
+#svg .lroof{display:none}
+#svg.z0 .lroof{display:inline}
+#svg .gnum{pointer-events:none}
+.legend i.l{background:linear-gradient(#d99a1e 0 33%,#e8b54e 33% 66%,#d99a1e 66%)}
