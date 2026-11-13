@@ -15,8 +15,22 @@ const setKey = v => { try { v ? localStorage.setItem(KEY, v) : localStorage.remo
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* the five layers, outer to inner */
-const COL = [['#eef2fa', '#c3d2ee'], ['#dbe6fb', '#5b82cc'], ['#8fe3d6', '#0b7a70'], ['#d6c6f7', '#7a5bc4'], ['#ffe9ad', '#d99a1e']];
-const SOLID = ['#c3d2ee', '#2a5bb8', '#0b7a70', '#7a5bc4', '#d99a1e'];
+/* colour palettes. Every colour the City paints comes from here, by the job it does:
+   stage = the work ladder (not started, then three steps of one hue light to dark, then gold for taught: the one accent),
+   ground = streets and plots (neutral, never a data colour), L = class lesson buildings, path = sabaq to lesson,
+   q = open questions, mentor = mentor flags (status colours, always with a label in the panel) */
+const PALETTES = {
+  /* Dawn (owner's choice, 2026-11-13): from Fajr to sunrise. The more light, the further the work went:
+     pre-dawn lavender (written), rose (in a sabaq), orange (refined, deck), full-sun gold (taught). */
+  dawn: { name: 'Dawn', stage: ['#dcdbe6', '#a9a3d6', '#e48f9b', '#f0813a', '#f2be1d'], bg: '#f6f6f9',
+    distA: '#ebebf2', distC: '#f1ecef', distLine: '#d9d8e3', blkA: '#e2e2ec', blkC: '#ebe3e8', blkE: '#f1f1f5', blkP: '#f7f7fa', dashP: '#aaa6c6', road: '#e3e2ea',
+    gnumA: '#9a97b8', gnumC: '#b8909c', L: ['#f2be1d', '#f7d25a'], Lp: ['#ecebf2', '#f8f8fb'], path: '#e6a812', pathP: '#c3c0d6', q: '#c2255c', flatA: '#d9d8e4', flatC: '#e3d9df', beam: '#2a2550',
+    ink: '#3f3d56', ink2: '#6b6885', lroof: '#7a5600', accent: '#3d3590', accentWash: '#ecebf7', signA: '#4b4590', signC: '#a14a5e', track: '#e6e5ee', dashP2: '#c3c0d6', mentor: { 'with mentor': '#3a2f8f', revising: '#9c36b5', final: '#2e7d32' } },
+};
+const PAL_BASE = { bg: '#fbfaf6', ink: '#4f5753', ink2: '#6b736f', halo: '#fffdf8', post: '#b9c4bf', lroof: '#7a4f00', ring: '#1d211f', dark: false, accent: '#0b5f57', accentWash: '#e4f2ef', signA: '#2a5bb8', signC: '#0b7a70', track: '#e7e5dc', dashP2: '#bdb7a6' };
+const PAL = Object.assign({}, PAL_BASE, PALETTES[new URLSearchParams(location.search).get('pal')] || PALETTES.dawn);
+const SOLID = PAL.stage;
+const COL = SOLID.map(c => [c, c]);
 const ATLAS_LAY = ['In the atlas plan', 'Fasl lesson written', 'Used in a hub sabaq', 'Sabaq refined, deck made', 'Taught in class'];
 const COURSE_LAY = ['Listed in the hub', 'Teacher Copy written', 'Refined and proofed', 'Class-ready, deck made', 'Taught in class'];
 
@@ -144,5 +158,5 @@ function start(ready) {
   $('#keyform').addEventListener('submit', e => { e.preventDefault(); const v = $('#key').value.trim(); if (!v) return; setKey(v); $('#key').value = ''; load(); });
   if (getKey()) load(); else screen('connect');
 }
-window.OBS = { RM, WM, $, esc, reduced, COL, SOLID, ATLAS_LAY, COURSE_LAY, fracs, counts, stageOf, model, bar, side, legendHTML, dropSVG, start };
+window.OBS = { RM, WM, $, esc, reduced, COL, SOLID, PAL, ATLAS_LAY, COURSE_LAY, fracs, counts, stageOf, model, bar, side, legendHTML, dropSVG, start };
 })();

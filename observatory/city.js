@@ -5,7 +5,14 @@
    moves anything), turn in quarter steps. Positions never change, so the city stays learnable. */
 (function () {
 'use strict';
-const { $, esc, SOLID, ATLAS_LAY, reduced, stageOf } = window.OBS;
+const { $, esc, SOLID, PAL, ATLAS_LAY, reduced, stageOf } = window.OBS;
+document.documentElement.style.setProperty('--accent', PAL.accent); document.documentElement.style.setProperty('--accent-wash', PAL.accentWash);
+(() => { const st = document.getElementById('stage'); if (st) { st.style.background = PAL.bg; st.dataset.pal = PAL.dark ? 'dark' : 'light'; } })();
+(() => { const lg = document.getElementById('legend'); if (!lg) return; const sw = (c, t, x) => `<span><i style="background:${c}"></i>${t}${x ? ` <small>(${x})</small>` : ''}</span>`;
+  lg.innerHTML = sw(SOLID[1], 'Written', 'course: Teacher Copy') + sw(SOLID[2], 'In a sabaq', 'refined') + sw(SOLID[3], 'Refined, deck', 'class-ready') + sw(SOLID[4], 'Taught')
+    + `<span><i style="background:repeating-linear-gradient(0deg,${PAL.L[0]} 0 3px,${PAL.L[1]} 3px 6px)"></i>Class lesson <small>(one slab per form; pale: planned)</small></span>`
+    + sw(PAL.flatA, 'Not started') + `<span><i style="background:${PAL.blkE};border:1.5px dashed ${PAL.dashP}"></i>Bab not settled <small>(dotted: old atlas Bab kept as a placeholder)</small></span>`
+    + `<span><i style="background:${PAL.q};border-radius:50%"></i>Open questions</span>`; })();
 const svg = $('#svg');
 let M = null, rot = 0, cells = [], districts = [], blocks = [], roads = [], W = 0, H = 0;
 let pinned = null, focus = null, cam = { x: 0, y: 0, k: 1 }, box = { x: 0, y: 0, w: 1, h: 1 };
@@ -87,13 +94,13 @@ function draw() {
   let ground = '', towers = [], signs = '', babl = '', roofs = '', marks = '';
   for (const R of roads) {
     const a = R.a, b = R.b, y0 = b.y + Math.min(b.h, a.h) / 2;
-    ground += `<polygon points="${rectPoly(a.x + a.w + .6, y0 - .7, b.x - a.x - a.w - 1.2, 1.4)}" fill="#e6e1d2"/><polygon points="${rectPoly(a.x + a.w + .6, y0 - .07, b.x - a.x - a.w - 1.2, .14)}" fill="#fffdf8"/>`;
+    ground += `<polygon points="${rectPoly(a.x + a.w + .6, y0 - .7, b.x - a.x - a.w - 1.2, 1.4)}" fill="${PAL.road}"/><polygon points="${rectPoly(a.x + a.w + .6, y0 - .07, b.x - a.x - a.w - 1.2, .14)}" fill="${PAL.halo}"/>`;
   }
   const gm = groundMatrix();
   districts.forEach((D, di) => {
-    ground += `<polygon class="dist" data-d="${di}" points="${rectPoly(D.x - .6, D.y - .6, D.w + 1.2, D.h + 1.2)}" fill="${D.node.kind === 'Atlas' ? '#e8edf7' : '#e2f1ee'}" stroke="#d3d9e4"/>`;
+    ground += `<polygon class="dist" data-d="${di}" points="${rectPoly(D.x - .6, D.y - .6, D.w + 1.2, D.h + 1.2)}" fill="${D.node.kind === 'Atlas' ? PAL.distA : PAL.distC}" stroke="${PAL.distLine}"/>`;
     D.blocks.forEach(B => {
-      ground += `<polygon class="blk" data-d="${di}" data-b="${blocks.indexOf(B)}" points="${rectPoly(B.x - .15 * D.s, B.y - .15 * D.s, B.w + .3 * D.s, B.h + .3 * D.s)}" fill="${B.node.plan === 'placeholder' ? '#f8f7f2' : B.empty ? '#f1efe7' : D.node.kind === 'Atlas' ? '#dde5f3' : '#d5ebe6'}"${B.node.plan === 'provisional' ? ' stroke="#8fb9b0" stroke-dasharray="5 3"' : B.node.plan === 'placeholder' ? ' stroke="#bdb7a6" stroke-dasharray="1 3.5"' : ''} vector-effect="non-scaling-stroke" stroke-width="1.3"/>`;
+      ground += `<polygon class="blk" data-d="${di}" data-b="${blocks.indexOf(B)}" points="${rectPoly(B.x - .15 * D.s, B.y - .15 * D.s, B.w + .3 * D.s, B.h + .3 * D.s)}" fill="${B.node.plan === 'placeholder' ? PAL.blkP : B.empty ? PAL.blkE : D.node.kind === 'Atlas' ? PAL.blkA : PAL.blkC}"${B.node.plan === 'provisional' ? ` stroke="${PAL.dashP}" stroke-dasharray="5 3"` : B.node.plan === 'placeholder' ? ' stroke="${PAL.dashP2}" stroke-dasharray="1 3.5"' : ''} vector-effect="non-scaling-stroke" stroke-width="1.3"/>`;
       const f = frontOf(B.x, B.y, B.w, B.h), [bx, by] = P(f[0] + .2, f[1] + .2, 0);
       const ur = B.node.ur ? (B.node.ur.length > 26 ? B.node.ur.slice(0, 25) + '…' : B.node.ur) : '';
       if (B.node !== D.node) {   // the Bab number lies flat in the street along the block's front edge, where no plot covers it
@@ -103,8 +110,8 @@ function draw() {
           return { m: [(t1[0] + t2[0]) / 2, (t1[1] + t2[1]) / 2], par: Math.abs(dx * ax[1] - dy * ax[0]) < 1e-3 * Math.hypot(dx, dy) * Math.hypot(ax[0], ax[1]) + 1e-9 }; });
         const e = edges.filter(x => x.par).reduce((m, x) => x.m[0] + x.m[1] > m.m[0] + m.m[1] ? x : m);
         const v = [e.m[0] - ct[0], e.m[1] - ct[1]], L = Math.hypot(...v) || 1, off = 0.72 * D.s, at = [e.m[0] + v[0] / L * off, e.m[1] + v[1] / L * off], [gx, gy] = P(at[0], at[1], 0);
-        ground += `<text class="gnum" transform="matrix(${gm.map(v => v.toFixed(3)).join(' ')} ${gx.toFixed(1)} ${gy.toFixed(1)})" font-size="${(1.05 * D.s).toFixed(2)}" text-anchor="middle" dominant-baseline="central" font-weight="800" fill="${D.node.kind === 'Atlas' ? '#7f93bd' : '#5aa597'}">${esc(B.node.short)}</text>`; }
-      if (B.node !== D.node) babl += `<g class="blab" data-x="${bx.toFixed(1)}" data-y="${by.toFixed(1)}"><text text-anchor="middle" y="9" font-size="11" font-weight="700" fill="#4f5753" stroke="#fffdf8" stroke-width="3" paint-order="stroke">${esc(B.node.short)}</text>${ur ? `<text text-anchor="middle" y="24" font-size="10.5" fill="#6b736f" stroke="#fffdf8" stroke-width="3" paint-order="stroke" font-family="Noto Nastaliq Urdu,serif" direction="rtl">${esc(ur)}</text>` : ''}</g>`;
+        ground += `<text class="gnum" transform="matrix(${gm.map(v => v.toFixed(3)).join(' ')} ${gx.toFixed(1)} ${gy.toFixed(1)})" font-size="${(1.05 * D.s).toFixed(2)}" text-anchor="middle" dominant-baseline="central" font-weight="800" fill="${D.node.kind === 'Atlas' ? PAL.gnumA : PAL.gnumC}">${esc(B.node.short)}</text>`; }
+      if (B.node !== D.node) babl += `<g class="blab" data-x="${bx.toFixed(1)}" data-y="${by.toFixed(1)}"><text text-anchor="middle" y="9" font-size="11" font-weight="700" fill="${PAL.ink}" stroke="${PAL.halo}" stroke-width="3" paint-order="stroke">${esc(B.node.short)}</text>${ur ? `<text text-anchor="middle" y="24" font-size="10.5" fill="${PAL.ink2}" stroke="${PAL.halo}" stroke-width="3" paint-order="stroke" font-family="Noto Nastaliq Urdu,serif" direction="rtl">${esc(ur)}</text>` : ''}</g>`;
     });
     const mid = turn(D.x + D.w / 2, D.y + D.h / 2), [lx, ly0] = P(mid[0], mid[1], 0);
     const lv = D.node.levels, n = lv.length || 1, cnt = k => lv.filter(l => l >= k).length;
@@ -112,28 +119,28 @@ function draw() {
     const line = lv.length ? (D.node.kind === 'Atlas' ? `${cnt(1)} written · ${cnt(2)} in a sabaq · ${cnt(4)} taught` : `${lv.length} ${D.node.unit} · ${cnt(2)} refined · ${cnt(4)} taught`) : (D.node.note || 'nothing listed yet');
     const wpx = Math.max(nm.length * 9, line.length * 6.1) + 24;
     let barH = '';
-    if (lv.length) { let bx = -wpx / 2 + 12; for (let k = 4; k >= 1; k--) { const own = (cnt(k) - (k < 4 ? cnt(k + 1) : 0)) / n * (wpx - 24); if (own > .3) { barH += `<rect x="${bx.toFixed(1)}" y="20" width="${own.toFixed(1)}" height="5" fill="${SOLID[k]}"/>`; bx += own; } } barH = `<rect x="${-wpx / 2 + 12}" y="20" width="${wpx - 24}" height="5" rx="2.5" fill="#e7e5dc"/>` + barH; }
-    signs += `<g class="sign" data-d="${di}" data-x="${lx.toFixed(1)}" data-y="${(ly0 - 30).toFixed(1)}"><line x1="0" y1="32" x2="0" y2="44" stroke="#b9c4bf" stroke-width="1.5"/><rect x="${-wpx / 2}" y="-20" width="${wpx}" height="${lv.length ? 52 : 44}" rx="10" fill="#fffdf8" fill-opacity=".95" stroke="${D.node.kind === 'Atlas' ? '#c3d2ee' : '#a8d8cf'}"/><text text-anchor="middle" y="-3" font-size="15" font-weight="700" fill="${D.node.kind === 'Atlas' ? '#2a5bb8' : '#0b7a70'}">${esc(nm)}</text><text text-anchor="middle" y="13" font-size="11.5" fill="#6b736f">${esc(line)}</text>${barH}</g>`;
+    if (lv.length) { let bx = -wpx / 2 + 12; for (let k = 4; k >= 1; k--) { const own = (cnt(k) - (k < 4 ? cnt(k + 1) : 0)) / n * (wpx - 24); if (own > .3) { barH += `<rect x="${bx.toFixed(1)}" y="20" width="${own.toFixed(1)}" height="5" fill="${SOLID[k]}"/>`; bx += own; } } barH = `<rect x="${-wpx / 2 + 12}" y="20" width="${wpx - 24}" height="5" rx="2.5" fill="${PAL.track}"/>` + barH; }
+    signs += `<g class="sign" data-d="${di}" data-x="${lx.toFixed(1)}" data-y="${(ly0 - 30).toFixed(1)}"><line x1="0" y1="32" x2="0" y2="44" stroke="${PAL.post}" stroke-width="1.5"/><rect x="${-wpx / 2}" y="-20" width="${wpx}" height="${lv.length ? 52 : 44}" rx="10" fill="#fffdf8" fill-opacity=".95" stroke="${D.node.kind === 'Atlas' ? PAL.track : PAL.track}"/><text text-anchor="middle" y="-3" font-size="15" font-weight="700" fill="${D.node.kind === 'Atlas' ? PAL.signA : PAL.signC}">${esc(nm)}</text><text text-anchor="middle" y="13" font-size="11.5" fill="${PAL.ink2}">${esc(line)}</text>${barH}</g>`;
   });
   cells.forEach(c => { const [x, y] = turn(c.x + c.s / 2, c.y + c.s / 2); c.rx = x - c.s / 2; c.ry = y - c.s / 2; });
   let paths = '';
   for (const c of cells) if (c.isL) { const sc = byNodeTmp.get(c.node.sab); if (!sc) continue; const a = P(sc.rx + sc.s / 2, sc.ry + sc.s / 2, 0), b = P(c.rx + c.s / 2, c.ry + c.s / 2, 0);
-    paths += `<path d="M${a[0].toFixed(1)},${a[1].toFixed(1)} L${b[0].toFixed(1)},${b[1].toFixed(1)}" stroke="${c.node.taught ? '#d99a1e' : '#e5c27a'}" stroke-width="2" ${c.node.taught ? '' : 'stroke-dasharray="4 3"'} vector-effect="non-scaling-stroke" stroke-linecap="round" opacity=".9"/>`; }
+    paths += `<path d="M${a[0].toFixed(1)},${a[1].toFixed(1)} L${b[0].toFixed(1)},${b[1].toFixed(1)}" stroke="${c.node.taught ? PAL.path : PAL.pathP}" stroke-width="2" ${c.node.taught ? '' : 'stroke-dasharray="4 3"'} vector-effect="non-scaling-stroke" stroke-linecap="round" opacity=".9"/>`; }
   const order = cells.slice().sort((a, b) => (a.rx + a.ry) - (b.rx + b.ry));
   for (const c of order) {
     const w = TOWER * c.s, o = (c.s - w) / 2, fh = FLOOR * c.s; let g = '';
-    if (c.isL) { const f = Math.max(1, formsOf(c.node).length), sh = 0.42 * c.s, wl = 0.9 * c.s, ol = (c.s - wl) / 2, pal = c.node.taught ? ['#d99a1e', '#e8b54e'] : ['#efd59a', '#f6e3b8']; let z = 0;
+    if (c.isL) { const f = Math.max(1, formsOf(c.node).length), sh = 0.42 * c.s, wl = 0.9 * c.s, ol = (c.s - wl) / 2, pal = c.node.taught ? PAL.L : PAL.Lp; let z = 0;
       for (let k = 0; k < f; k++) { g += prism(c.rx + ol, c.ry + ol, z, sh, wl, pal[k % 2]); z += sh; } c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, z);
       towers.push(`<g class="c L" data-i="${c.i}">${g}</g>`);
-      roofs += `<text class="lroof" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 3).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#7a4f00" stroke="#fffdf8" stroke-width="3" paint-order="stroke">${esc(c.node.short)}</text>`;
+      roofs += `<text class="lroof" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 3).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="${PAL.lroof}" stroke="${PAL.halo}" stroke-width="3" paint-order="stroke">${esc(c.node.short)}</text>`;
       continue; }
     const lv = c.node.kind === 'Sabaq' ? Math.min(2, stageOf(c.node.has)) : c.lvl;
-    if (!lv) { g = `<polygon points="${pts([P(c.rx + o, c.ry + o, 0), P(c.rx + o + w, c.ry + o, 0), P(c.rx + o + w, c.ry + o + w, 0), P(c.rx + o, c.ry + o + w, 0)])}" fill="${c.course ? '#bfd9d3' : '#c9d4ea'}"/>`; c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, 0); }
+    if (!lv) { g = `<polygon points="${pts([P(c.rx + o, c.ry + o, 0), P(c.rx + o + w, c.ry + o, 0), P(c.rx + o + w, c.ry + o + w, 0), P(c.rx + o, c.ry + o + w, 0)])}" fill="${c.course ? PAL.flatC : PAL.flatA}"/>`; c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, 0); }
     else { let z = 0; for (let f = 1; f <= lv; f++) { g += prism(c.rx + o, c.ry + o, z, fh, w, SOLID[f]); z += fh; } c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, z); }
     towers.push(`<g class="c" data-i="${c.i}">${g}</g>`);
-    if (lv >= 1) roofs += `<text class="roof" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 2).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#1d211f" stroke="#fffdf8" stroke-width="2.5" paint-order="stroke">${esc(c.node.short)}</text>`;
-    if (c.props.q) marks += `<circle class="mk" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 4).toFixed(1)}" r="3.4" fill="#b4382a" stroke="#fff" stroke-width="1"/>`;
-    if (c.node.mentor) { const col = { 'with mentor': '#2a5bb8', revising: '#b4382a', final: '#2c7a35' }[c.node.mentor.status] || '#6b736f'; marks += `<g class="mk flag" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 2).toFixed(1)}"><line x1="0" y1="0" x2="0" y2="-12" stroke="#1d211f" stroke-width="1"/><path d="M0,-12 L8,-9 L0,-6Z" fill="${col}"/></g>`; }
+    if (lv >= 1) roofs += `<text class="roof" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 2).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="${PAL.ink}" stroke="${PAL.halo}" stroke-width="2.5" paint-order="stroke">${esc(c.node.short)}</text>`;
+    if (c.props.q) marks += `<circle class="mk" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 4).toFixed(1)}" r="3.4" fill="${PAL.q}" stroke="#fff" stroke-width="1"/>`;
+    if (c.node.mentor) { const col = PAL.mentor[c.node.mentor.status] || '#6b736f'; marks += `<g class="mk flag" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 2).toFixed(1)}"><line x1="0" y1="0" x2="0" y2="-12" stroke="#1d211f" stroke-width="1"/><path d="M0,-12 L8,-9 L0,-6Z" fill="${col}"/></g>`; }
   }
   svg.innerHTML = `<g id="world"><g id="ground">${ground}</g><g id="paths">${paths}</g><g id="towers">${towers.join('')}</g><g id="beams"></g><g id="babl">${babl}</g><g id="roofs">${roofs}</g><g id="marks">${marks}</g><g id="signs">${signs}</g></g>`;
   const gb = $('#ground').getBBox(), tb = $('#towers').getBBox(), x0 = Math.min(gb.x, tb.x), y0 = Math.min(gb.y, tb.y);
@@ -218,9 +225,9 @@ function chainOf(c) {
 function beams() {
   const g = $('#beams'); if (!g) return; if (!pinned) { g.innerHTML = ''; return; }
   const c = pinned, to = chainOf(c);
-  let h = `<circle cx="${c.top[0]}" cy="${c.top[1]}" r="4" fill="none" stroke="#1d211f" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+  let h = `<circle cx="${c.top[0]}" cy="${c.top[1]}" r="4" fill="none" stroke="${PAL.ring}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
   for (const t of to) { const [x1, y1] = c.top, [x2, y2] = t.top, mx = (x1 + x2) / 2, my = Math.min(y1, y2) - Math.hypot(x2 - x1, y2 - y1) * 0.3 - 18;
-    h += `<path d="M${x1},${y1} Q${mx},${my} ${x2},${y2}" fill="none" stroke="#0b7a70" stroke-width="2" vector-effect="non-scaling-stroke" opacity=".9"/><circle cx="${x2}" cy="${y2}" r="3" fill="#0b7a70"/>`; }
+    h += `<path d="M${x1},${y1} Q${mx},${my} ${x2},${y2}" fill="none" stroke="${PAL.beam}" stroke-width="2" vector-effect="non-scaling-stroke" opacity=".9"/><circle cx="${x2}" cy="${y2}" r="3" fill="${PAL.beam}"/>`; }
   g.innerHTML = h;
 }
 function pinPaint() {
@@ -253,8 +260,8 @@ function panel(c) {
   if (n.kind === 'Fasl') { const ss = n.kids || []; chain = [`<b>${esc(n.short)}</b>`, ss.length ? ss.map(s => link(s.code, s.code)).join('<br>') : '<span class="none">no sabaq yet</span>', ss.filter(s => s.L).map(s => `<span>${esc(s.L)}</span>`).join('<br>') || '<span class="none">none</span>']; }
   else if (n.kind === 'Sabaq') { const fs = chainOf(c).filter(x => !x.isL); chain = [fs.length ? fs.map(f => link(f.node.code, f.node.code)).join('<br>') : '<span class="none">none listed</span>', `<b>${esc(n.short)}</b>`, n.L ? `<span>${esc(n.L)}</span>` : '<span class="none">not yet</span>']; }
   if (chain.length) h += `<div class="chain"><span class="ck">Atlas Fasl</span><span class="ck">Hub sabaq</span><span class="ck">Class lesson</span>${chain.map(x => `<span class="cv">${x}</span>`).join('')}</div>`;
-  if (n.kind === 'Sabaq') { const st = Math.min(2, stageOf(n.has)); h += `<div class="ladder">${['Listed in the hub', 'Teacher Copy written', 'Refined'].map((t, i) => `<div class="${i <= st ? 'on' : ''}"><i style="background:${i <= st ? SOLID[i] : '#e7e5dc'}"></i>${t}</div>`).join('')}<div class="${n.Lnode ? 'on' : ''}"><i style="background:${n.Lnode ? (n.Lnode.taught ? '#d99a1e' : '#efd59a') : '#e7e5dc'}"></i>${n.Lnode ? `Became class lesson ${esc(n.Lnode.short)} (${n.Lnode.taught ? 'taught' : 'planned'})` : 'Not a class lesson yet'}</div></div>`; }
-  else h += `<div class="ladder">${steps.map((t, i) => `<div class="${i <= c.lvl ? 'on' : ''}"><i style="background:${i <= c.lvl ? SOLID[i] : '#e7e5dc'}"></i>${t}</div>`).join('')}</div>`;
+  if (n.kind === 'Sabaq') { const st = Math.min(2, stageOf(n.has)); h += `<div class="ladder">${['Listed in the hub', 'Teacher Copy written', 'Refined'].map((t, i) => `<div class="${i <= st ? 'on' : ''}"><i style="background:${i <= st ? SOLID[i] : PAL.track}"></i>${t}</div>`).join('')}<div class="${n.Lnode ? 'on' : ''}"><i style="background:${n.Lnode ? (n.Lnode.taught ? PAL.L[0] : PAL.Lp[0]) : PAL.track}"></i>${n.Lnode ? `Became class lesson ${esc(n.Lnode.short)} (${n.Lnode.taught ? 'taught' : 'planned'})` : 'Not a class lesson yet'}</div></div>`; }
+  else h += `<div class="ladder">${steps.map((t, i) => `<div class="${i <= c.lvl ? 'on' : ''}"><i style="background:${i <= c.lvl ? SOLID[i] : PAL.track}"></i>${t}</div>`).join('')}</div>`;
   if (n.has) { const has = new Set(n.has); h += `<div class="card"><h3>Forms</h3><div class="forms">${FORMS.map(([k, t]) => { const on = (Array.isArray(k) ? k : [k]).some(x => has.has(x)); return `<span class="form${on ? ' on' : ''}">${on ? '✓ ' : ''}${t}</span>`; }).join('')}</div>${n.rm ? `<a class="small" href="${esc(n.rm)}?t=files" target="rm">Open the files in Reading Mode</a>` : ''}</div>`; }
   if (n.q || n.notes) h += `<div class="card"><h3>Waiting on you</h3>${n.q ? `<div class="r"><span>Open questions</span><b class="red">${n.q}</b></div>` : ''}${n.notes ? `<div class="r"><span>Editor notes</span><b>${n.notes}</b></div>` : ''}${n.q && n.rm ? `<a class="small" href="${esc(n.rm)}?t=questions" target="rm">Answer them in Reading Mode</a>` : ''}</div>`;
   if (n.mentor) h += `<div class="card"><h3>Mentor</h3><div class="r"><span>${esc(n.mentor.status)}${n.mentor.round ? ', round ' + n.mentor.round : ''}</span><b>${esc((n.mentor.updated || '').slice(0, 10))}</b></div>${n.mentor.note ? `<p class="muted">${esc(n.mentor.note)}</p>` : ''}</div>`;
@@ -299,7 +306,7 @@ function minimap() {
   districts.forEach(D => { const c = [[D.x, D.y], [D.x + D.w, D.y], [D.x + D.w, D.y + D.h], [D.x, D.y + D.h]].map(([a, b]) => turn(a, b)).map(([a, b]) => P(a, b, 0));
     ctx.beginPath(); c.forEach(([x, y], i) => { const X = mm.ox + x * mm.k, Y = mm.oy + y * mm.k; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath();
     const lv = D.node.levels, f = lv.length ? lv.filter(l => l >= 2).length / lv.length : 0;
-    ctx.fillStyle = D.node.kind === 'Atlas' ? `rgba(42,91,184,${(0.18 + f * 0.8).toFixed(2)})` : `rgba(11,122,112,${(0.3 + f * 0.6).toFixed(2)})`; ctx.fill(); });
+    const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(','); ctx.fillStyle = D.node.kind === 'Atlas' ? `rgba(${rgb(SOLID[1])},${(0.25 + f * 0.75).toFixed(2)})` : `rgba(${rgb(SOLID[3])},${(0.3 + f * 0.6).toFixed(2)})`; ctx.fill(); });
   viewport();
 }
 function viewport() {
