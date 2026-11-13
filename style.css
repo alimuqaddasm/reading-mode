@@ -434,6 +434,53 @@ body.has-player .toast{bottom:calc(200px + env(safe-area-inset-bottom,0px))}
 .rail a.lsn.on{background:var(--accent-w);color:var(--ink);box-shadow:none}
 .rail .lsh{font-family:var(--ui);font-size:11px;color:var(--faint);padding:8px 10px 2px;direction:ltr;text-align:right}
 @media (max-width:640px){.step .sb span{display:none}}
-.top1 .crumb:has(+ .step){flex:0 1 auto}
-.top1 .step{margin-inline-end:auto}
 .step .sb span{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* three ways to move (2026-11-13): X chain in row 1, Y number and Z forms in row 2 */
+.xpath{display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-width:0;direction:rtl}
+.xpath .xs svg{width:10px;height:10px;color:var(--faint)}
+.st{display:inline-flex;align-items:baseline;gap:6px;border:1px solid var(--rule);border-radius:9px;padding:3px 10px;font-family:var(--ui);font-size:13px;font-weight:600;color:var(--ink);background:var(--paper);text-decoration:none;white-space:nowrap;direction:ltr;cursor:pointer;list-style:none}
+.st::-webkit-details-marker{display:none}
+.st i{font-style:normal;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+.st.a{color:var(--atlas)} .st.f{color:var(--atlas)} .st.s{color:var(--accent)} .st.l{color:var(--gold-ink)}
+a.st:hover,summary.st:hover{border-color:currentColor}
+.st.cur{background:var(--ink);color:var(--paper);border-color:var(--ink);cursor:default}
+.st.cur i{color:inherit;opacity:.7}
+.st.none{opacity:.55;cursor:default;border-style:dashed}
+.car{font-size:10px;opacity:.7;margin-inline-start:2px}
+details.dd{position:relative}
+details.dd>summary{list-style:none}
+details.dd>summary::-webkit-details-marker{display:none}
+details.dd .menu{position:absolute;top:calc(100% + 6px);right:0;z-index:30;min-width:260px;max-width:min(420px,90vw);max-height:min(60vh,520px);overflow:auto;background:var(--paper);border:1px solid var(--rule);border-radius:12px;box-shadow:0 14px 32px rgba(29,33,31,.16);padding:6px;display:flex;flex-direction:column;gap:2px}
+.top2 details.dd .menu{right:auto;left:0}
+.top2 .zforms~details.dd .menu,.top2 .ynav details.dd .menu{left:auto;right:0}
+details.dd .menu a{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 10px;align-items:center;padding:5px 10px;border-radius:8px;text-decoration:none;color:var(--ink)}
+details.dd .menu a:hover{background:var(--wash)}
+details.dd .menu a[aria-current]{background:var(--accent-w)}
+details.dd .menu a b{font-family:var(--ui);font-size:12.5px;font-weight:700;direction:ltr;text-align:right;white-space:nowrap}
+details.dd .menu a span{font-size:14.5px;line-height:1.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+details.dd .menu a i{font-style:normal;font-family:var(--ui);font-size:10.5px;font-weight:700;border-radius:5px;padding:0 6px}
+details.dd .menu a i.l{background:var(--gold);color:#1d1405} details.dd .menu a i.lp{background:var(--gold-w);color:var(--gold-ink)}
+details.dd .menu a i.s{background:var(--accent-w);color:var(--accent)} details.dd .menu a i.f{background:var(--atlas-w);color:var(--atlas)}
+.xpath details.dd .menu a{grid-template-columns:minmax(0,1fr)}
+.xpath details.dd .menu a b{text-align:left}
+.ynav{display:flex;align-items:center;gap:4px;direction:rtl;font-family:var(--ui)}
+.ynav .yp,.ynav .yn{display:inline-flex;align-items:center;gap:5px;min-height:34px;padding:0 9px;border:1px solid var(--rule);border-radius:9px;background:var(--paper);color:var(--ink);text-decoration:none;font-size:12.5px;font-weight:600;max-width:200px}
+.ynav .yp span,.ynav .yn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ynav a:hover{border-color:var(--accent-2);color:var(--accent)}
+.ynav .off{opacity:.3}
+.ynav svg{width:14px;height:14px;flex:none}
+.ycur{display:inline-flex;align-items:baseline;gap:6px;min-height:34px;padding:6px 12px;border-radius:9px;background:var(--ink);color:var(--paper);font-size:14px;font-weight:700;cursor:pointer;direction:ltr}
+.ycur .of{font-size:11.5px;font-weight:500;opacity:.75}
+.ydd .menu.list{min-width:340px}
+.top2 .tabs.more{opacity:.92}
+.top2 .tabs.more a{font-size:13px}
+.top2 .gap{flex:1}
+.disp>summary.btn{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+.disp .menu.wide{min-width:340px;gap:6px;padding:12px;direction:ltr}
+.disp .menu .mh{font-family:var(--ui);font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-top:4px}
+.disp .menu .mrow{display:flex;flex-wrap:wrap;gap:6px}
+.disp .schf{display:flex}
+@media (max-width:640px){.st i{display:none}.ynav .yp span,.ynav .yn span{display:none}}
+.top1 .tools{margin-inline:0;margin-right:auto}
+.top2 .zforms~details.disp.dd .menu,.top2 details.disp.dd .menu{left:0;right:auto}
