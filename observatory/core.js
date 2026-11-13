@@ -22,7 +22,7 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const PALETTES = {
   /* Dawn (owner's choice, 2026-11-13): from Fajr to sunrise. The more light, the further the work went:
      pre-dawn lavender (written), rose (in a sabaq), orange (refined, deck), full-sun gold (taught). */
-  dawn: { name: 'Dawn', stage: ['#dcdbe6', '#a9a3d6', '#e48f9b', '#f0813a', '#f2be1d'], bg: '#f6f6f9',
+  dawn: { name: 'Dawn', stage: ['#dcdbe6', '#a9a3d6', '#d4677a', '#c2501a', '#f2be1d'], bg: '#f6f6f9',
     distA: '#ebebf2', distC: '#f1ecef', distLine: '#d9d8e3', blkA: '#e2e2ec', blkC: '#ebe3e8', blkE: '#f1f1f5', blkP: '#f7f7fa', dashP: '#aaa6c6', road: '#e3e2ea',
     gnumA: '#9a97b8', gnumC: '#b8909c', L: ['#f2be1d', '#f7d25a'], Lp: ['#ecebf2', '#f8f8fb'], path: '#e6a812', pathP: '#c3c0d6', q: '#c2255c', flatA: '#d9d8e4', flatC: '#e3d9df', beam: '#2a2550',
     ink: '#3f3d56', ink2: '#6b6885', lroof: '#7a5600', accent: '#3d3590', accentWash: '#ecebf7', signA: '#4b4590', signC: '#a14a5e', track: '#e6e5ee', dashP2: '#c3c0d6', mentor: { 'with mentor': '#3a2f8f', revising: '#9c36b5', final: '#2e7d32' } },
