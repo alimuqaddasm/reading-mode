@@ -157,8 +157,7 @@ function topBar(o) {
   const crumbs = (o.crumbs || []).map((c, i, a) => (i ? ICON.chev : '') + (i === a.length - 1 ? `<span class="cur${c.ui ? ' c ui' : ''}">${esc(c.t)}</span>` : `<a href="${c.h}"${c.ui ? ' class="c ui"' : ''}>${esc(c.t)}</a>`)).join('');
   const wm = o.wm || WM;
   let h = `<div class="top1"><button type="button" class="btn tocbtn" id="bToc">${ICON.menu}Contents</button>
-    <a class="brand" href="#"><span class="mk">${ICON.book}</span>Reading Mode</a><nav class="crumb" aria-label="Where you are">${crumbs}</nav>
-    ${o.step || ''}<span class="tools"><span class="save" id="save"></span>
+    <a class="brand" href="#"><span class="mk">${ICON.book}</span>Reading Mode</a>${o.path || `<nav class="crumb" aria-label="Where you are">${crumbs}</nav>`}<span class="tools"><span class="save" id="save"></span>
     <a class="btn" href="${esc(wm)}" target="wm" title="Open this place in the Work Map">${ICON.wm}Work Map</a>
     <button type="button" class="btn icon" id="bTheme" aria-label="Dark or light">${ICON.moon}</button>
     <button type="button" class="btn" id="bForget" title="Remove your key from this browser">Forget key</button></span></div>`;
@@ -382,9 +381,11 @@ function lessonView(L) {
   const tabH = tabs.map(([k, t, n]) => `<a href="${hash(seg, k === 'tc' ? {} : { t: k })}"${L.tab === k ? ' aria-current="page"' : ''}>${t}${n ? `<span class="n${k === 'questions' ? ' q' : ''}">${n}</span>` : ''}</a>`).join('');
   const schf = Object.keys(SCH).filter(k => items.some(i => (i.sch || []).includes(k))).map(k => `<button type="button" data-sch="${k}" aria-pressed="${pref.focus === k}" style="--c:var(--${k})"><i class="dot"></i>${SCH_SHORT[k]}</button>`).join('');
   const tg = (k, t, c) => `<button type="button" class="btn" data-show="${k}" aria-pressed="${!!pref.show[k]}"><i class="sq" style="background:${c}"></i>${t}</button>`;
-  const second = `<nav class="tabs" aria-label="Material">${tabH}</nav><div class="schf" role="group" aria-label="Show one scholar">${schf}</div>
-    <div class="tools">${nn ? tg('note', 'Editor notes', 'var(--note)') : ''}${nq ? tg('q', 'Open questions', 'var(--q)') : ''}${ntc ? tg('tc', 'Teacher only', 'var(--tc-line)') : ''}${items.some(i => i.t === 'omitted') ? tg('omit', 'Left-out material', 'var(--faint)') : ''}
-    <button type="button" class="btn icon" id="bSm" aria-label="Smaller text">A−</button><button type="button" class="btn icon" id="bLg" aria-label="Larger text">A+</button></div>`;
+  const disp = `<details class="dd disp"><summary class="btn">Display<span class="car" aria-hidden="true">▾</span></summary><div class="menu wide" role="group" aria-label="Display">
+      ${nn || nq || ntc || items.some(i => i.t === 'omitted') ? `<span class="mh">Show in the lesson</span><div class="mrow">${nn ? tg('note', 'Editor notes', 'var(--note)') : ''}${nq ? tg('q', 'Open questions', 'var(--q)') : ''}${ntc ? tg('tc', 'Teacher only', 'var(--tc-line)') : ''}${items.some(i => i.t === 'omitted') ? tg('omit', 'Left-out material', 'var(--faint)') : ''}</div>` : ''}
+      ${schf ? `<span class="mh">Light up one scholar</span><div class="schf mrow" role="group" aria-label="Show one scholar">${schf}</div>` : ''}
+      <span class="mh">Text size</span><div class="mrow"><button type="button" class="btn icon" id="bSm" aria-label="Smaller text">A−</button><button type="button" class="btn icon" id="bLg" aria-label="Larger text">A+</button></div></div></details>`;
+  const second = `${yNav(L)}${zNav(L, tabs, seg)}<span class="gap"></span>${disp}`;
   // chain and crumbs
   let chain = '', crumbs, wm;
   if (isS) {
@@ -407,7 +408,7 @@ function lessonView(L) {
     crumbs = [{ t: L.atlas.ur, h: '#' + L.atlas.id }, { t: 'B' + L.bab, h: `#${L.atlas.id}/${L.bab}`, ui: 1 }, { t: d.label || d.fasl_id, ui: 0 }];
     wm = `${WM}#atlas?a=${L.atlas.id}&b=${L.bab}`;
   }
-  topBar({ crumbs, step: stepHTML(neighbours(L)), second, rail: 1, wm, lessonKey: L.key });
+  topBar({ crumbs, path: xPath(L), second, rail: 1, wm, lessonKey: L.key });
   // rail
   const secs = []; let cur = null;
   items.forEach(it => { if (it.t === 'h2' || (it.t === 'h3' && !isS)) { cur = { it, sch: new Set() }; secs.push(cur); } else if (cur && it.sch) it.sch.forEach(x => cur.sch.add(x)); });
@@ -423,7 +424,7 @@ function lessonView(L) {
   let h = `<div class="desk"><nav class="rail" aria-label="Sections">${rail}</nav><main class="read"><article class="sheet">
     <header class="lhead"><span class="k">${esc(kicker)}</span><h1>${d.title || ''}</h1>${share ? `<span class="share" role="img" aria-label="Who speaks how much">${share}</span>` : ''}
     ${d.ref ? `<span class="ref">${esc(d.ref)}</span>` : ''}${(d.sources || []).length ? `<span class="src">sources ${esc(d.sources.join(' '))}</span>` : ''}
-    ${d.md ? `<span class="src"><a href="${esc(d.md)}">the lesson file on GitHub</a></span>` : ''}${connHTML(L, wm)}</header>`;
+    ${d.md ? `<span class="src"><a href="${esc(d.md)}">the lesson file on GitHub</a></span>` : ''}</header>`;
   if (L.tab === 'files') h += filesHTML(d);
   else if (L.tab === 'changes') h += changesHTML(d);
   else if (L.tab === 'questions') h += `<div class="files">${items.filter(i => i.t === 'q').map(qCard).join('')}</div>`;
@@ -440,7 +441,7 @@ function lessonView(L) {
   const rer = sel => { // keep the paragraph at the top of the screen where it was
     const lim = ($('#top').getBoundingClientRect().bottom || 0) + 8; let anc = null, off = 0;
     for (const r of $$('.row[data-b]')) { const t = r.getBoundingClientRect(); if (t.bottom > lim) { anc = r.dataset.b; off = t.top; break; } }
-    L.block = null; L.keep = true; lessonView(L); L.keep = false;
+    const dOpen = !!($('.disp') && $('.disp').open); L.block = null; L.keep = true; lessonView(L); L.keep = false; if (dOpen && $('.disp')) $('.disp').open = true;
     const el = anc && document.getElementById('r-' + anc);
     if (el) { const fix = () => scrollBy(0, el.getBoundingClientRect().top - off); fix(); requestAnimationFrame(fix); }
     const b = $(sel); if (b) b.focus({ preventScroll: true }); };
@@ -521,25 +522,100 @@ function connHTML(L, wm) {
   row('Work Map', `<a class="chip w" href="${esc(wm)}" target="wm">Open here in the Work Map</a>`);
   return rows.length ? `<nav class="conn" aria-label="Connected material">${rows.join('')}</nav>` : '';
 }
+/* ---------- three ways to move ----------
+   X: the material chain, atlas, Fasl, sabaq, class lesson (top row)
+   Y: the number along the Bab, S1 to S21, L1 to L5, F1 to F41 (second row, and Shift with an arrow key)
+   Z: the forms of the same lesson, Teacher Copy, Handout, Master Copy and other versions (second row)
+   Moving on one axis keeps your place on the other two. */
+const VARIANT = l => l.variant || (/-a$/.test(l.slug) ? 'Audio text' : 'Main text');
+function pickVariant(ls, want) { return ls.find(l => VARIANT(l) === want) || ls.find(l => !l.variant && !/-a$/.test(l.slug)) || ls.find(l => /teacher copy/i.test(l.variant || '')) || ls[0]; }
+function yItems(L) {
+  const d = L.d, cur = parse().seg[2];
+  if (d.kind === 'sabaq') { const b = L.course.babs.find(x => x.n === L.bab); const pre = L.course.id === 'mrf' ? '' : `B${L.bab} `;
+    const items = b.sabaq.map(x => ({ h: `#${L.course.id}/${L.bab}/${x.slug}`, s: x.label, code: `${L.course.code} ${pre}${x.label}`, t: x.title, tag: x.L ? `L${x.L}` : '', tagc: x.Ls === 'planned' ? 'lp' : 'l' }));
+    return { items, i: b.sabaq.findIndex(x => x.slug === d.slug || (!d.slug && x.n === d.n)), unit: L.course.id === 'mrf' ? 'lessons' : 'sabaq' }; }
+  if (d.kind === 'class') { const b = L.course.babs.find(x => x.n === L.bab); const all = b ? b.lessons : []; const me = all.find(l => l.slug === cur); const want = me ? VARIANT(me) : 'Main text';
+    const Ls = [...new Set(all.map(l => l.L))].sort((m, n) => m - n);
+    const items = Ls.map(n => { const l = pickVariant(all.filter(x => x.L === n), want); const src = b.sabaq.find(x => x.L === n);
+      return { h: `#${L.course.id}/${L.bab}/${l.slug}`, s: `L${n}`, code: `${L.course.code} B${L.bab} L${n} (${VARIANT(l)})`, t: l.title, tag: src ? src.label : '', tagc: 's' }; });
+    return { items, i: Ls.indexOf(d.L), unit: 'class lessons' }; }
+  const b = L.atlas.babs.find(x => x.n === L.bab);
+  const parts = b.fasls.flatMap(f => f.parts.map((pt, k) => ({ f, pt, k })));
+  return { items: parts.map(({ f, pt, k }) => ({ h: `#${L.atlas.id}/${L.bab}/${pt.id}`, s: `F${f.id.split('.')[1]}${f.parts.length > 1 ? '.' + (k + 1) : ''}`, code: pt.label, t: pt.title || f.ur, tag: pt.label, tagc: 'f' })),
+    i: parts.findIndex(x => x.pt.id === cur), unit: 'atlas lessons' };
+}
+const clean = t => String(t || '').replace(/<[^>]+>/g, '');
+function ddHTML(label, opts, cls, cur, title) {
+  if (!opts.length) return `<span class="st ${cls} none"${title ? ` title="${esc(title)}"` : ''}>${label}</span>`;
+  if (opts.length === 1 && !cur) return `<a class="st ${cls}" href="${opts[0].h}" title="${esc(clean(opts[0].sub || opts[0].t))}">${label}</a>`;
+  return `<details class="dd"><summary class="st ${cls}${cur ? ' cur' : ''}"${cur ? ' aria-current="page"' : ''}>${label}${opts.length > 1 ? '<span class="car" aria-hidden="true">▾</span>' : ''}</summary><div class="menu">${opts.map(o => `<a href="${o.h}"${o.on ? ' aria-current="page"' : ''}><b>${esc(o.t)}</b>${o.sub ? `<span>${esc(clean(o.sub))}</span>` : ''}</a>`).join('')}</div></details>`;
+}
+function xPath(L) {
+  const d = L.d, sep = `<span class="xs" aria-hidden="true">${ICON.chev}</span>`, cap = (k, v) => `<i>${k}</i>${esc(v)}`;
+  let course = L.course, at = L.course ? S.index.atlases.find(a => a.id === L.course.atlas) : L.atlas, sabs = [], srcs = [];
+  const sabOf = (cid, bn, pred) => { const c = S.index.courses.find(x => x.id === cid); const b = c && c.babs.find(x => x.n === bn); const x = b && b.sabaq.find(pred); return x && { c, b, x }; };
+  if (d.kind === 'sabaq') { const o = sabOf(course.id, L.bab, x => x.slug === d.slug || x.n === d.n); if (o) sabs = [o]; srcs = d.sources || []; }
+  else if (d.kind === 'class') { const o = sabOf(course.id, L.bab, x => x.L === d.L); if (o) { sabs = [o]; srcs = o.x.sources || []; } }
+  else { sabs = (d.used || []).map(u => sabOf(u.course, +u.bab, x => String(x.n) === String(u.n) || x.slug === u.slug)).filter(Boolean); course = sabs[0] && sabs[0].c; }
+  // atlas and Fasl
+  const fas = d.kind === 'fasl' ? [d.fasl_id] : [...new Set(srcs.filter(x => /^U\d+\.\d+(-\d+)?$/.test(x)).map(x => x.split('-')[0]))];
+  const fl = fas.map(u => { const [bn, f] = u.slice(1).split('.'); const ab = at && at.babs.find(x => x.n === +bn); return { u, bn: +bn, f, fasl: ab && ab.fasls.find(x => x.id === u) }; });
+  const babs = [...new Set(fl.map(x => x.bn))]; const mainB = d.kind === 'fasl' ? L.bab : (fl[0] ? fl[0].bn : null);
+  let out = '';
+  if (at) out += ddHTML(cap('Atlas', `${at.name}${mainB ? ' B' + mainB : ''}`), (babs.length ? babs : mainB ? [mainB] : []).flatMap(bn => [
+    { h: `#${at.id}/${bn}`, t: `${at.name} B${bn}: every Fasl`, sub: (at.babs.find(x => x.n === bn) || {}).ur || '' },
+    { h: `#${at.id}/${bn}/atlas`, t: `${at.name} B${bn}: the atlas text`, sub: 'every Nukta of the Bab' }]).concat(babs.length ? [] : [{ h: `#${at.id}`, t: `${at.name}: every Bab` }]), 'a', false) + sep;
+  if (d.kind === 'fasl') out += ddHTML(cap('Fasl', `F${d.fasl_id.split('.')[1]} · ${d.label || ''}`), [], 'f cur', true).replace('none', '') + sep;
+  else if (at) out += ddHTML(cap('Fasl', fl.length ? `F${fl[0].f}${fl.length > 1 ? ' +' + (fl.length - 1) : ''}` : 'none listed'),
+    fl.map(x => ({ h: x.fasl && x.fasl.parts.length ? `#${at.id}/${x.bn}/${x.fasl.parts[0].id}` : `#${at.id}/${x.bn}`, t: `B${x.bn} F${x.f}${x.fasl && x.fasl.parts.length ? '' : ' (not built yet)'}`, sub: x.fasl ? x.fasl.ur : '' })), 'f', false) + sep;
+  // sabaq
+  if (d.kind === 'sabaq') out += `<span class="st s cur" aria-current="page">${cap(course.id === 'mrf' ? 'Lesson' : 'Sabaq', d.code)}</span>`;
+  else out += ddHTML(cap('Sabaq', sabs.length === 1 ? `${sabs[0].c.code} B${sabs[0].b.n} ${sabs[0].x.label}` : sabs.length ? `${sabs.length} sabaq` : 'none yet'),
+    sabs.map(o => ({ h: `#${o.c.id}/${o.b.n}/${o.x.slug}`, t: `${o.c.code} B${o.b.n} ${o.x.label}`, sub: o.x.title })), 's', false);
+  // class lesson
+  if (course && course.id !== 'mrf') {
+    out += sep;
+    if (d.kind === 'class') out += `<span class="st l cur" aria-current="page">${cap('Class lesson', 'L' + d.L)}</span>`;
+    else { const ls = sabs.flatMap(o => o.x.L ? o.b.lessons.filter(l => l.L === o.x.L).map(l => ({ o, l })) : []);
+      const planned = sabs.find(o => o.x.L);
+      const want = LS.get('zform', 'Teacher Copy');
+      const best = [...new Set(ls.map(z => z.o.x.L))].map(n => { const g = ls.filter(z => z.o.x.L === n); const l = pickVariant(g.map(z => z.l), want); return g.find(z => z.l === l); });
+      out += ddHTML(cap('Class lesson', best.length === 1 ? `L${best[0].l.L}` : best.length ? `${best.length} lessons` : planned ? `L${planned.x.L} · no text yet` : 'not planned'),
+        best.map(z => ({ h: `#${z.o.c.id}/${z.o.b.n}/${z.l.slug}`, t: `L${z.l.L} · ${VARIANT(z.l)}`, sub: z.l.title })), 'l', false, planned ? `L${planned.x.L} ${planned.x.Ls || ''}: its class lesson text is not in Reading Mode yet` : 'No class lesson is planned from this yet'); }
+  }
+  return `<nav class="xpath" aria-label="Material chain: atlas, Fasl, sabaq, class lesson">${out}</nav>`;
+}
+function yNav(L) {
+  const y = yItems(L), p = y.items[y.i - 1], n = y.items[y.i + 1], me = y.items[y.i];
+  if (!me) return '';
+  const arrow = (x, cls, ic, word, key) => x ? `<a class="${cls}" href="${x.h}" title="${word}: ${esc(x.code)} · ${esc(clean(x.t))} (${key})">${cls === 'yp' ? ic + `<span>${esc(x.s)}</span>` : `<span>${esc(x.s)}</span>` + ic}</a>` : `<span class="${cls} off" aria-hidden="true">${ic}</span>`;
+  const menu = y.items.map((x, k) => `<a href="${x.h}"${k === y.i ? ' aria-current="page"' : ''}><b>${esc(x.s)}</b><span>${esc(clean(x.t))}</span>${x.tag ? `<i class="${x.tagc}">${esc(x.tag)}</i>` : ''}</a>`).join('');
+  return `<nav class="ynav" aria-label="Lesson number">${arrow(p, 'yp', ICON.prev, 'Previous', 'Shift and right arrow')}<details class="dd ydd"><summary class="ycur">${esc(me.s)}<span class="of">of ${y.items.length}</span><span class="car" aria-hidden="true">▾</span></summary><div class="menu list">${menu}</div></details>${arrow(n, 'yn', ICON.next, 'Next', 'Shift and left arrow')}</nav>`;
+}
+function zNav(L, tabs, seg) {
+  const d = L.d, t = (k, label, n) => `<a href="${hash(seg, k === 'tc' ? {} : { t: k })}"${L.tab === k ? ' aria-current="page"' : ''}>${label}${n ? `<span class="n${k === 'questions' ? ' q' : ''}">${n}</span>` : ''}</a>`;
+  let forms = '';
+  if (d.kind === 'class') {
+    const b = L.course.babs.find(x => x.n === L.bab); const cur = seg[2];
+    const vs = b ? b.lessons.filter(l => l.L === d.L) : [];
+    forms = vs.map(l => `<a href="#${L.course.id}/${L.bab}/${l.slug}" data-zform="${esc(VARIANT(l))}"${l.slug === cur && L.tab !== 'handout' ? ' aria-current="page"' : ''}>${esc(VARIANT(l))}</a>`).join('');
+    if (!vs.some(l => /handout/i.test(l.variant || ''))) forms += t('handout', 'Handout view');
+  } else forms = t('tc', d.kind === 'fasl' ? 'Atlas lesson' : 'Teacher Copy') + t('handout', 'Handout view');
+  const more = tabs.filter(([k]) => !['tc', 'handout'].includes(k)).map(([k, label, n]) => t(k, label, n)).join('');
+  return `<nav class="tabs zforms" aria-label="Form of this lesson">${forms}</nav>${more ? `<nav class="tabs more" aria-label="About this lesson">${more}</nav>` : ''}`;
+}
+document.addEventListener('click', e => {
+  const zf = e.target.closest('[data-zform]'); if (zf) LS.set('zform', zf.dataset.zform);
+  if (!document.contains(e.target)) return; // the click redrew the page (Teacher only): leave the menu as it is
+  $$('details.dd[open]').forEach(dd => { if (!dd.contains(e.target) || e.target.closest('.menu a')) dd.open = false; });
+});
+addEventListener('keydown', e => { if (e.key === 'Escape') $$('details.dd[open]').forEach(dd => { dd.open = false; }); });
 function lesLink(L, n) {
   const b = L.course.babs.find(x => x.n === L.bab); const ls = b ? b.lessons.filter(l => l.L === n) : [];
   const l = ls.find(x => !x.variant && !/-a$/.test(x.slug)) || ls[0];
   return l ? `#${L.course.id}/${L.bab}/${l.slug}` : '';
 }
-function neighbours(L) {
-  const d = L.d; const o = {};
-  if (d.kind === 'sabaq') { const b = L.course.babs.find(x => x.n === L.bab); const i = b.sabaq.findIndex(s => s.slug === d.slug || (!d.slug && s.n === d.n));
-    const mk = s => s && { s: s.label, h: `#${L.course.id}/${L.bab}/${s.slug}`, code: `${L.course.code} ${L.course.id === 'mrf' ? '' : 'B' + L.bab + ' '}${s.label}`, t: s.title };
-    o.prev = mk(b.sabaq[i - 1]); o.next = mk(b.sabaq[i + 1]); }
-  if (d.kind === 'class') { const b = L.course.babs.find(x => x.n === L.bab); const ls = b ? b.lessons : []; const i = ls.findIndex(l => l.slug === parse().seg[2]);
-    const mk = l => l && { s: `L${l.L}${l.variant ? " " + l.variant : (/-a$/.test(l.slug) ? " audio" : "")}`, h: `#${L.course.id}/${L.bab}/${l.slug}`, code: `${L.course.code} B${L.bab} L${l.L}${l.variant ? ' (' + l.variant + ')' : ''}`, t: l.title };
-    o.prev = mk(ls[i - 1]); o.next = mk(ls[i + 1]); }
-  if (d.kind === 'fasl') { const b = L.atlas.babs.find(x => x.n === L.bab); const built = b.fasls.filter(f => f.parts.length); const i = built.findIndex(f => f.id === d.fasl_id);
-    const parts = b.fasls.flatMap(f => f.parts); const j = parts.findIndex(p => p.id === d.id || p.id === parse().seg[2]);
-    const mk = p => p && { s: p.label, h: `#${L.atlas.id}/${L.bab}/${p.id}`, code: p.label, t: p.title };
-    o.prev = mk(parts[j - 1]); o.next = mk(parts[j + 1]); }
-  return o;
-}
+function neighbours(L) { const y = yItems(L); return { prev: y.items[y.i - 1], next: y.items[y.i + 1] }; }
 function rowsHTML(items, tab) {
   const hide = it => (tab === 'handout' && (it.tc || SIDE_T.includes(it.t) || it.t === 'omitted')) || (tab !== 'handout' && it.tc && !pref.show.tc && !SIDE_T.includes(it.t));
   const nTot = items.filter(i => i.t === 'tnote').length; let nI = 0;
@@ -902,7 +978,7 @@ addEventListener('keydown', e => {
   if (e.key === 'Escape') { const o = $$('.over'); if ($('#drawer') || o.length) { closeDrawer(); o.forEach(x => x.parentNode.removeChild(x)); return; } }
   if (e.key === ' ' && AU.map && AU.key && !e.target.closest('input,textarea,select,button,[contenteditable]')) { e.preventDefault(); if (AU.el.paused) AU.el.play().catch(() => {}); else AU.el.pause(); return; }
   if (e.target.closest('input,textarea,select,[contenteditable]') || e.ctrlKey || e.metaKey || e.altKey || !S.cur || !$('.desk')) return;
-  if (e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { const a = $(e.key === 'ArrowLeft' ? '.step .sb.n[href]' : '.step .sb.p[href]'); if (a) { e.preventDefault(); location.hash = a.getAttribute('href'); } return; }
+  if (e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { const a = $(e.key === 'ArrowLeft' ? '.ynav .yn[href]' : '.ynav .yp[href]'); if (a) { e.preventDefault(); location.hash = a.getAttribute('href'); } return; }
   if (e.key === 'ArrowLeft') { e.preventDefault(); observe.step && observe.step(1); }
   if (e.key === 'ArrowRight') { e.preventDefault(); observe.step && observe.step(-1); }
   if (e.key === 't' || e.key === 'T') openDrawer();
