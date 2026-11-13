@@ -61,7 +61,7 @@ function model(w) {
     const babs = c.babs.map(b => {
       const kids = b.hub.map(H => ({ kind: 'Sabaq', cid: c.id, bab: b.n, n: H.h, has: H.has || [], code: `${c.code} B${b.n} S${H.h}`, short: 'S' + H.h, ur: H.ur, size: 1, lay: COURSE_LAY, unit: 'Fasls and class lesson',
         levels: [H.L && H.Ls === 'taught' ? 4 : stageOf(H.has)], L: H.L ? `L${H.L} ${H.Ls}` : '', fasls: H.fasls || [], fkeys: (H.fasls || []).map(u => c.atlas + ':' + u.replace(/^U/, '').split('-')[0]),
-        Lnode: H.L ? { kind: 'Class lesson', code: `${c.code} B${b.n} L${H.L}`, short: 'L' + H.L, ur: H.ur, size: 1, lay: COURSE_LAY, levels: [H.Ls === 'taught' ? 4 : stageOf(H.has)], note: H.Ls === 'taught' ? 'Taught in class' : 'Planned, not taught yet', wm: `${WM}#course?c=${c.id}&b=${b.n}&s=${c.id}-${b.n}-${H.h}`, rm: `${RM}#${c.id}/${b.n}/${H.h}` } : null,
+        Lnode: H.L ? { kind: 'Class lesson', n: H.L, taught: H.Ls === 'taught', has: H.has || [], code: `${c.code} B${b.n} L${H.L}`, short: 'L' + H.L, ur: H.ur, size: 1, lay: COURSE_LAY, levels: [H.Ls === 'taught' ? 4 : stageOf(H.has)], note: H.Ls === 'taught' ? 'Taught in class' : 'Planned, not taught yet', wm: `${WM}#course?c=${c.id}&b=${b.n}&s=${c.id}-${b.n}-${H.h}`, rm: `${RM}#${c.id}/${b.n}/${H.h}` } : null,
         wm: `${WM}#course?c=${c.id}&b=${b.n}&s=${c.id}-${b.n}-${H.h}`, rm: `${RM}#${c.id}/${b.n}/${H.h}` }));
       return { kind: 'Bab', code: `${c.code} B${b.n}`, short: 'B' + b.n, ur: '', size: Math.max(1, kids.length), levels: kids.map(k => k.levels[0]), empty: !kids.length, lay: COURSE_LAY, kids,
         wm: `${WM}#course?c=${c.id}&b=${b.n}`, rm: `${RM}#${c.id}`, unit: 'sabaq', note: kids.length ? `Built on ${c.atlas} B${b.from}` : `Hub: ${b.hub_state}` };
@@ -79,7 +79,7 @@ function model(w) {
   atlases.forEach(a => a.kids.forEach(b => b.kids.forEach(f => { fIdx[f.key] = f; })));
   courses.forEach(c => (c.kids || []).forEach(b => (b.kids || []).forEach(sb => { (sb.fkeys || []).forEach(k => (byF[k] = byF[k] || []).push(sb)); })));
   courses.forEach(c => (c.kids || []).forEach(b => (b.kids || []).forEach(sb => { if (!sb.fkeys) return;
-    sb.kids = sb.fkeys.map(k => fIdx[k]).filter(Boolean).map(leaf); if (sb.Lnode) sb.kids.push(sb.Lnode); })));
+    sb.kids = sb.fkeys.map(k => fIdx[k]).filter(Boolean).map(leaf); if (sb.Lnode) { sb.Lnode.sab = sb; sb.kids.push(sb.Lnode); } })));
   atlases.forEach(a => { a.drops = courses.filter(c => c.atlas && a.code.toLowerCase().startsWith(c.atlas)); a.kids.forEach(b => {
     b.kids.forEach(f => { f.kids = byF[f.key] || []; });
     b.drops = [...new Set(b.kids.flatMap(f => byF[f.key] || []))]; b.dropsHead = 'Sabaq built from this Bab'; }); });
