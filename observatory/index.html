@@ -23,6 +23,7 @@
   <header class="top">
     <a class="brand" href="#"><i class="orb"></i>Maarif City</a>
     <nav class="crumb" id="crumb" aria-label="Where you are"></nav>
+    <div class="views" id="views" role="group" aria-label="View"><a href="#" data-view="city" class="on" aria-pressed="true">City</a><a href="#" data-view="table" aria-pressed="false">Table</a></div>
     <div class="search"><input id="q" type="search" placeholder="Search  ZM B1 S9, Akhlaq B5, or Urdu   ( / )" autocomplete="off" spellcheck="false" aria-label="Search the city"><div id="results" class="results" hidden></div></div>
     <span class="made" id="made"></span>
   </header>
@@ -35,6 +36,7 @@
     <div class="stage" id="stage">
       <svg id="svg" role="img" aria-label="Maarif City: every atlas and course as a district of towers"></svg>
       <div class="tip" id="tip" hidden></div>
+      <div class="tablev" id="tablev" hidden></div>
       <div class="legend" id="legend"><span><i style="background:#2a5bb8"></i>Written <small>(course: Teacher Copy)</small></span><span><i style="background:#0b7a70"></i>In a sabaq <small>(refined)</small></span><span><i style="background:#7a5bc4"></i>Refined, deck <small>(class-ready)</small></span><span><i style="background:#d99a1e"></i>Taught</span><span><i class="l"></i>Class lesson <small>(one slab per form)</small></span><span><i class="flat"></i>Not started</span><span><i class="dash"></i>Bab not settled <small>(dotted: old atlas Bab kept as a placeholder)</small></span><span><i class="q"></i>Open questions</span></div>
       <div class="ctl"><button type="button" class="btn icon" id="zin" title="Zoom in (+)">+</button><button type="button" class="btn icon" id="zout" title="Zoom out (−)">−</button><button type="button" class="btn" id="rotL" title="Turn left (Q)">⟲</button><button type="button" class="btn" id="rotR" title="Turn right (E)">⟳</button><button type="button" class="btn" id="fit" title="Show everything (F)">Show all</button><button type="button" class="btn icon" id="help" title="Help (?)">?</button></div>
       <div class="minimap" title="Click to jump"><canvas id="mini" width="170" height="116"></canvas><div class="vp" id="vp"></div></div>
