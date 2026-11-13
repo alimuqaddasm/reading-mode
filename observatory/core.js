@@ -55,7 +55,8 @@ function model(w) {
     const u = use[a.id + ':' + f.id] || { lvl: 0, by: [] };
     const written = (f.al || []).some(x => x === 'built' || x === 'written');
     const lvl = Math.max(written ? 1 : 0, u.lvl);
-    return { kind: 'Fasl', key: a.id + ':' + f.id, code: `${a.name} B${b.n} F${f.id.split('.')[1]}`, short: 'F' + f.id.split('.')[1], ur: f.ur, size: 1, levels: [lvl], lay: ATLAS_LAY, by: u.by, unit: 'sabaq built from it',
+    const running = lvl < 4 && (f.al || []).includes('running');   // a unit being written right now
+    return { kind: 'Fasl', key: a.id + ':' + f.id, code: `${a.name} B${b.n} F${f.id.split('.')[1]}`, short: 'F' + f.id.split('.')[1], ur: f.ur, size: 1, levels: [lvl], running, lay: ATLAS_LAY, by: u.by, unit: 'sabaq built from it',
       wm: `${WM}#atlas?a=${a.id}&b=${b.n}`, rm: `${RM}#${a.id}/${b.n}` };
   };
   const atlases = w.atlases.map(a => {
@@ -148,7 +149,9 @@ function start(ready) {
     try {
       const [w, ri, marks] = await Promise.all([raw('workmap.json'), raw('reading/index.json').catch(() => null), raw('marks.json', API_NOTES).catch(() => ({}))]);
       const M = model(w); annotate(M, ri, marks || {});
-      $('#made').textContent = 'Updated ' + String(w.made || '').replace(/^\d{4}-/, '').replace(' UTC', '');
+      const age = (Date.now() - Date.parse(String(w.made || '').replace(' UTC', '').replace(' ', 'T') + 'Z')) / 36e5, mk = $('#made');
+      mk.textContent = isNaN(age) ? 'Updated ' + (w.made || '') : `Data from ${age < 1 ? Math.max(1, Math.round(age * 60)) + ' min' : Math.round(age) + ' h'} ago`;
+      mk.title = 'Last hub scan: ' + (w.made || 'unknown') + (age > 13 ? '. The scan runs twice a day; this is older than usual.' : ''); mk.classList.toggle('old', age > 13);
       screen('app'); ready(M, w);
     } catch (e) {
       if (e.status === 401 || e.status === 404) setKey('');

@@ -27,9 +27,9 @@
     <span class="made" id="made"></span>
   </header>
   <div class="bar2">
-    <select id="preset" aria-label="Show"></select>
+    <div class="seg" id="preset" role="group" aria-label="Show"></div>
     <div class="chips" id="chips" role="group" aria-label="Filter"></div>
-    <span class="count" id="count"></span><button type="button" class="link" id="clear" hidden>Clear</button>
+    <span class="count" id="count"></span><button type="button" class="btn sm" id="showm" hidden>Show them</button><button type="button" class="link" id="clear" hidden>Clear</button>
   </div>
   <main class="desk">
     <div class="stage" id="stage">
@@ -40,10 +40,10 @@
       <div class="minimap" title="Click to jump"><canvas id="mini" width="170" height="116"></canvas><div class="vp" id="vp"></div></div>
       <div class="helpbox" id="helpbox" hidden><b>Getting around</b>
         <div><kbd>click</kbd> select a tower: its chain, forms, open questions and mentor status show on the right</div>
-        <div><kbd>double-click</kbd> fly into that Bab · click a sign to fly into a district</div>
+        <div>click the ground or a sign to fly in · <kbd>double-click</kbd> a tower to fly into its Bab</div>
         <div><kbd>drag</kbd> or two-finger swipe: move · pinch or mouse wheel: zoom · <kbd>+</kbd> <kbd>−</kbd> zoom · <kbd>Q</kbd> <kbd>E</kbd> turn · <kbd>F</kbd> show all</div>
         <div>On a touch screen: drag with one, two or three fingers to move, pinch to zoom</div>
-        <div><kbd>/</kbd> search · <kbd>Esc</kbd> one step back</div>
+        <div><kbd>/</kbd> search · <kbd>Esc</kbd> or the browser Back button: one step back · <kbd>N</kbd> next match</div>
         <div><kbd>←</kbd> <kbd>→</kbd> next tower in the same Bab · <kbd>[</kbd> <kbd>]</kbd> along the chain (atlas Fasl to sabaq and back)</div>
         <div>Each course stands beside the atlas it is built from. Floors climb as the work goes: written, in a sabaq, refined, taught. Filters dim, they never move anything.</div>
         <button type="button" class="btn" data-close>Close</button></div>
