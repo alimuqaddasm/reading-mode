@@ -63,8 +63,12 @@ function model(w) {
         levels: [H.L && H.Ls === 'taught' ? 4 : stageOf(H.has)], L: H.L ? `L${H.L} ${H.Ls}` : '', fasls: H.fasls || [], fkeys: (H.fasls || []).map(u => c.atlas + ':' + u.replace(/^U/, '').split('-')[0]),
         Lnode: H.L ? { kind: 'Class lesson', n: H.L, taught: H.Ls === 'taught', has: H.has || [], code: `${c.code} B${b.n} L${H.L}`, short: 'L' + H.L, ur: H.ur, size: 1, lay: COURSE_LAY, levels: [H.Ls === 'taught' ? 4 : stageOf(H.has)], note: H.Ls === 'taught' ? 'Taught in class' : 'Planned, not taught yet', wm: `${WM}#course?c=${c.id}&b=${b.n}&s=${c.id}-${b.n}-${H.h}`, rm: `${RM}#${c.id}/${b.n}/${H.h}` } : null,
         wm: `${WM}#course?c=${c.id}&b=${b.n}&s=${c.id}-${b.n}-${H.h}`, rm: `${RM}#${c.id}/${b.n}/${H.h}` }));
-      return { kind: 'Bab', code: `${c.code} B${b.n}`, short: 'B' + b.n, ur: '', size: Math.max(1, kids.length), levels: kids.map(k => k.levels[0]), empty: !kids.length, lay: COURSE_LAY, kids,
-        wm: `${WM}#course?c=${c.id}&b=${b.n}`, rm: `${RM}#${c.id}`, unit: 'sabaq', note: kids.length ? `Built on ${c.atlas} B${b.from}` : `Hub: ${b.hub_state}` };
+      const PLAN = { settled: 'Bab settled', provisional: 'Bab provisional: its Fasls may still move', placeholder: 'Placeholder: the old atlas Bab, not reworked yet' };
+      const an = c.atlas ? c.atlas[0].toUpperCase() + c.atlas.slice(1) : '';
+      const from = !b.from_note ? `Built on ${an} atlas B${b.from}` : /unchanged/.test(b.from_note) ? `The ${an} atlas B${b.from} as it stands` : `Drawn mostly from ${an} atlas B${b.from}, part of the regrouping of ${b.from_note.replace(/^old /, 'atlas ').replace(/\s*\(.*\)$/, '')}`;
+      return { kind: 'Bab', code: `${c.code} B${b.n}`, short: 'B' + b.n, ur: b.ur || '', en: b.en || '', plan: b.plan || '', size: Math.max(1, kids.length), levels: kids.map(k => k.levels[0]), empty: !kids.length, lay: COURSE_LAY, kids,
+        wm: `${WM}#course?c=${c.id}&b=${b.n}`, rm: `${RM}#${c.id}`, unit: 'sabaq',
+        note: [b.plan ? PLAN[b.plan] || b.plan : '', b.fasls_n ? `${b.fasls_n} Fasls` : '', kids.length ? from : b.plan ? `No lessons yet. ${from}` : `Hub: ${b.hub_state}`].filter(Boolean).join(' · ') };
     });
     return { kind: 'Course', id: c.id, code: c.code, short: c.code, ur: c.ur, size: 1, levels: babs.flatMap(b => b.levels), lay: COURSE_LAY, kids: babs, wm: `${WM}#course?c=${c.id}`, rm: `${RM}#${c.id}`, unit: 'sabaq', atlas: c.atlas };
   });
