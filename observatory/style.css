@@ -160,9 +160,9 @@ kbd{font-family:var(--ui);font-size:11.5px;border:1px solid var(--rule);border-b
 #svg .c.sel{opacity:1}
 #svg .mk,#svg #paths path,#svg .fr{transition:opacity .2s}
 #svg .mk.dim,#svg #paths path.dim,#svg .fr.dim{opacity:.08}
-#svg .fr{fill:var(--accent);fill-opacity:.22;stroke:var(--accent);stroke-width:1.4;vector-effect:non-scaling-stroke;animation:frpulse 2.4s ease-in-out infinite}
+#svg .fr{fill:var(--accent);fill-opacity:.2;stroke:var(--accent);stroke-width:1.4;vector-effect:non-scaling-stroke}
 @keyframes frpulse{50%{fill-opacity:.08}}
-@media (prefers-reduced-motion:reduce){#svg .fr{animation:none}}
+
 .tip{white-space:normal;max-width:300px;padding:8px 11px;line-height:1.4}
 .tip .th{display:flex;flex-direction:column;gap:1px}.tip .th span{color:#d9d6ea;font-size:11.5px}
 .tip .tu{font-family:var(--ur-s);font-size:16px;line-height:1.7;margin-top:2px}
@@ -236,3 +236,14 @@ kbd{font-family:var(--ui);font-size:11.5px;border:1px solid var(--rule);border-b
 .gq.gqq::after{content:"";position:absolute;right:0;top:0;width:4px;height:4px;background:#2a2550;border-radius:0 2px 0 2px}
 .gq.gb{width:14px;height:14px}
 .gq:hover{outline:2px solid var(--accent);outline-offset:0}
+.seg.tier .tl{font-size:12px;color:var(--faint);font-weight:600;padding:0 6px 0 8px;align-self:center}
+
+/* speed pass: one class fades the rest during a selection; empty plots fade as one shape */
+#svg.pinning #towers .c:not(.keep){opacity:.3}
+#svg.pinning #flats,#svg.pinning #paths,#svg.pinning #marks{opacity:.3}
+#svg #flats{transition:opacity .25s ease-out}
+#svg #flats.dim{opacity:.15}
+#svg #flathits path{fill:var(--accent);fill-opacity:.18;stroke:var(--accent);stroke-width:1.5;vector-effect:non-scaling-stroke}
+#svg #ovl,#svg #flathits,#svg #flats,#svg #fresh,#svg #paths,#svg #marks,#svg #babl,#svg #beams{pointer-events:none}
+
+#svg.zooming text,#svg.zooming .mk{display:none}
