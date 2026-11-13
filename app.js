@@ -420,7 +420,7 @@ function lessonView(L) {
   const tot = {}; items.forEach(it => (it.s || []).forEach(s => { const k = s.c ? '+' : (s.sch || []).length === 1 ? s.sch[0] : (s.sch || []).length ? '*' : '+'; tot[k] = (tot[k] || 0) + (s.h || '').length; }));
   const all = Object.values(tot).reduce((a, b) => a + b, 0) || 1;
   const share = Object.entries(tot).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span style="width:${100 * v / all}%;background:${SCH[k] ? `var(--${k})` : k === '*' ? 'var(--several)' : 'var(--rule)'}" title="${SCH[k] ? SCH[k][0] : k === '*' ? 'several scholars' : 'written for the lesson'}"></span>`).join('');
-  const kicker = isS ? `${d.code} · ${L.tab === 'handout' ? 'Handout view' : 'Teacher Copy'}` : isC ? `${d.code} · class lesson text${d.variant ? ', ' + d.variant : ''}` : `${L.atlas.name} atlas lesson, step M1 · ${d.label || ''}`;
+  const kicker = isS ? `${d.code} · ${L.tab === 'handout' ? 'Handout view' : 'Teacher Copy'}` : isC ? (d.same_as ? `${d.code} · taught from ${d.same_as} as written, so this is the sabaq's own text` : `${d.code} · class lesson text${d.variant ? ', ' + d.variant : ''}`) : `${L.atlas.name} atlas lesson, step M1 · ${d.label || ''}`;
   let h = `<div class="desk"><nav class="rail" aria-label="Sections">${rail}</nav><main class="read"><article class="sheet">
     <header class="lhead"><span class="k">${esc(kicker)}</span><h1>${d.title || ''}</h1>${share ? `<span class="share" role="img" aria-label="Who speaks how much">${share}</span>` : ''}
     ${d.ref ? `<span class="ref">${esc(d.ref)}</span>` : ''}${(d.sources || []).length ? `<span class="src">sources ${esc(d.sources.join(' '))}</span>` : ''}
