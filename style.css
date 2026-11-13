@@ -436,3 +436,4 @@ body.has-player .toast{bottom:calc(200px + env(safe-area-inset-bottom,0px))}
 @media (max-width:640px){.step .sb span{display:none}}
 .top1 .crumb:has(+ .step){flex:0 1 auto}
 .top1 .step{margin-inline-end:auto}
+.step .sb span{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

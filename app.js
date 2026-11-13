@@ -475,7 +475,7 @@ function warmRows() {
 const shortCode = c => String(c || '').split(' ').slice(-1)[0];
 function stepHTML(nx) {
   if (!nx.prev && !nx.next) return '';
-  const b = (x, cls, ic, key) => x ? `<a class="sb ${cls}" href="${x.h}" title="${esc(x.code)} · ${esc(String(x.t || '').replace(/<[^>]+>/g, ''))} (${key})">${cls === 'p' ? ic : ''}<span>${esc(shortCode(x.code))}</span>${cls === 'n' ? ic : ''}</a>` : `<span class="sb off ${cls}" aria-hidden="true"></span>`;
+  const b = (x, cls, ic, key) => x ? `<a class="sb ${cls}" href="${x.h}" title="${esc(x.code)} · ${esc(String(x.t || '').replace(/<[^>]+>/g, ''))} (${key})">${cls === 'p' ? ic : ''}<span>${esc(x.s || shortCode(x.code))}</span>${cls === 'n' ? ic : ''}</a>` : `<span class="sb off ${cls}" aria-hidden="true"></span>`;
   return `<nav class="step" aria-label="Previous and next lesson">${b(nx.prev, 'p', ICON.prev, 'Shift and right arrow')}${b(nx.next, 'n', ICON.next, 'Shift and left arrow')}</nav>`;
 }
 function lessonsRail(L) {
@@ -529,14 +529,14 @@ function lesLink(L, n) {
 function neighbours(L) {
   const d = L.d; const o = {};
   if (d.kind === 'sabaq') { const b = L.course.babs.find(x => x.n === L.bab); const i = b.sabaq.findIndex(s => s.slug === d.slug || (!d.slug && s.n === d.n));
-    const mk = s => s && { h: `#${L.course.id}/${L.bab}/${s.slug}`, code: `${L.course.code} ${L.course.id === 'mrf' ? '' : 'B' + L.bab + ' '}${s.label}`, t: s.title };
+    const mk = s => s && { s: s.label, h: `#${L.course.id}/${L.bab}/${s.slug}`, code: `${L.course.code} ${L.course.id === 'mrf' ? '' : 'B' + L.bab + ' '}${s.label}`, t: s.title };
     o.prev = mk(b.sabaq[i - 1]); o.next = mk(b.sabaq[i + 1]); }
   if (d.kind === 'class') { const b = L.course.babs.find(x => x.n === L.bab); const ls = b ? b.lessons : []; const i = ls.findIndex(l => l.slug === parse().seg[2]);
-    const mk = l => l && { h: `#${L.course.id}/${L.bab}/${l.slug}`, code: `${L.course.code} B${L.bab} L${l.L}${l.variant ? ' (' + l.variant + ')' : ''}`, t: l.title };
+    const mk = l => l && { s: `L${l.L}${l.variant ? " " + l.variant : (/-a$/.test(l.slug) ? " audio" : "")}`, h: `#${L.course.id}/${L.bab}/${l.slug}`, code: `${L.course.code} B${L.bab} L${l.L}${l.variant ? ' (' + l.variant + ')' : ''}`, t: l.title };
     o.prev = mk(ls[i - 1]); o.next = mk(ls[i + 1]); }
   if (d.kind === 'fasl') { const b = L.atlas.babs.find(x => x.n === L.bab); const built = b.fasls.filter(f => f.parts.length); const i = built.findIndex(f => f.id === d.fasl_id);
     const parts = b.fasls.flatMap(f => f.parts); const j = parts.findIndex(p => p.id === d.id || p.id === parse().seg[2]);
-    const mk = p => p && { h: `#${L.atlas.id}/${L.bab}/${p.id}`, code: p.label, t: p.title };
+    const mk = p => p && { s: p.label, h: `#${L.atlas.id}/${L.bab}/${p.id}`, code: p.label, t: p.title };
     o.prev = mk(parts[j - 1]); o.next = mk(parts[j + 1]); }
   return o;
 }
