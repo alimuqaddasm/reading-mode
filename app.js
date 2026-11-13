@@ -56,7 +56,7 @@ async function load() {
   screen('loading');
   try {
     const fonts = document.fonts ? Promise.race([Promise.all(['21px Gulzar', '700 21px "Noto Nastaliq Urdu"', '21px Amiri', '21px Vazirmatn', '14px Geist', '600 14px Geist'].map(f => document.fonts.load(f, 'ابپ Aa1'))).catch(() => {}), new Promise(r => setTimeout(r, 3000))]) : null;
-    const [idx, aud, j] = await Promise.all([data('index.json'), gh('audio/index.json', null, true, DATA).then(JSON.parse).catch(() => ({})), gh('notes.json').catch(e => { if (e.status !== 404) throw e; return null; }), fonts]);
+    const [idx, aud, j] = await Promise.all([data('index.json'), Promise.all([gh('audio/index.json', null, true, DATA).then(JSON.parse).catch(() => ({})), data('audio/index.json').catch(() => ({}))]).then(([a, b]) => Object.assign({}, a, b)), gh('notes.json').catch(e => { if (e.status !== 404) throw e; return null; }), fonts]);
     S.index = idx; S.audio = aud || {};
     if (j) { S.notes = JSON.parse(b64dec(j.content)); S.notesSha = j.sha; } else { S.notes = { notes: {}, marks: {} }; S.notesSha = null; }
     S.notes.notes = S.notes.notes || {}; S.notes.marks = S.notes.marks || {};
@@ -529,20 +529,21 @@ function connHTML(L, wm) {
    Moving on one axis keeps your place on the other two. */
 const VARIANT = l => l.variant || (/-a$/.test(l.slug) ? 'Audio text' : 'Main text');
 function pickVariant(ls, want) { return ls.find(l => VARIANT(l) === want) || ls.find(l => !l.variant && !/-a$/.test(l.slug)) || ls.find(l => /teacher copy/i.test(l.variant || '')) || ls[0]; }
-function yItems(L) {
-  const d = L.d, cur = parse().seg[2];
-  if (d.kind === 'sabaq') { const b = L.course.babs.find(x => x.n === L.bab); const pre = L.course.id === 'mrf' ? '' : `B${L.bab} `;
-    const items = b.sabaq.map(x => ({ h: `#${L.course.id}/${L.bab}/${x.slug}`, s: x.label, code: `${L.course.code} ${pre}${x.label}`, t: x.title, tag: x.L ? `L${x.L}` : '', tagc: x.Ls === 'planned' ? 'lp' : 'l' }));
-    return { items, i: b.sabaq.findIndex(x => x.slug === d.slug || (!d.slug && x.n === d.n)), unit: L.course.id === 'mrf' ? 'lessons' : 'sabaq' }; }
-  if (d.kind === 'class') { const b = L.course.babs.find(x => x.n === L.bab); const all = b ? b.lessons : []; const me = all.find(l => l.slug === cur); const want = me ? VARIANT(me) : 'Main text';
-    const Ls = [...new Set(all.map(l => l.L))].sort((m, n) => m - n);
-    const items = Ls.map(n => { const l = pickVariant(all.filter(x => x.L === n), want); const src = b.sabaq.find(x => x.L === n);
-      return { h: `#${L.course.id}/${L.bab}/${l.slug}`, s: `L${n}`, code: `${L.course.code} B${L.bab} L${n} (${VARIANT(l)})`, t: l.title, tag: src ? src.label : '', tagc: 's' }; });
-    return { items, i: Ls.indexOf(d.L), unit: 'class lessons' }; }
-  const b = L.atlas.babs.find(x => x.n === L.bab);
-  const parts = b.fasls.flatMap(f => f.parts.map((pt, k) => ({ f, pt, k })));
-  return { items: parts.map(({ f, pt, k }) => ({ h: `#${L.atlas.id}/${L.bab}/${pt.id}`, s: `F${f.id.split('.')[1]}${f.parts.length > 1 ? '.' + (k + 1) : ''}`, code: pt.label, t: pt.title || f.ur, tag: pt.label, tagc: 'f' })),
-    i: parts.findIndex(x => x.pt.id === cur), unit: 'atlas lessons' };
+function yItems(L) {   // the number axis runs across every Bab, so Next on the last sabaq of B1 goes to B2 S1
+  const d = L.d, cur = parse().seg[2], flat = L.course && L.course.id === 'mrf';
+  const tagB = (bn, t) => (bn === L.bab || flat ? '' : `B${bn} `) + t;
+  if (d.kind === 'sabaq') {
+    const items = L.course.babs.flatMap(b => b.sabaq.map(x => ({ bab: b.n, h: `#${L.course.id}/${b.n}/${x.slug}`, s: tagB(b.n, x.label), code: `${L.course.code} ${flat ? '' : 'B' + b.n + ' '}${x.label}`, t: x.title, tag: x.L ? `L${x.L}` : '', tagc: x.Ls === 'planned' ? 'lp' : 'l' })));
+    const b = L.course.babs.find(x => x.n === L.bab), k = b.sabaq.findIndex(x => x.slug === d.slug || (!d.slug && x.n === d.n));
+    return { items, i: items.findIndex(x => x.bab === L.bab && x.h === `#${L.course.id}/${L.bab}/${b.sabaq[k] && b.sabaq[k].slug}`) }; }
+  if (d.kind === 'class') {
+    const mine = (L.course.babs.find(x => x.n === L.bab) || { lessons: [] }).lessons.find(l => l.slug === cur); const want = mine ? VARIANT(mine) : 'Main text';
+    const items = L.course.babs.flatMap(b => [...new Set(b.lessons.map(l => l.L))].sort((m, n) => m - n).map(n => {
+      const l = pickVariant(b.lessons.filter(x => x.L === n), want); const src = b.sabaq.find(x => x.L === n);
+      return { bab: b.n, L: n, h: `#${L.course.id}/${b.n}/${l.slug}`, s: tagB(b.n, `L${n}`), code: `${L.course.code} B${b.n} L${n} (${VARIANT(l)})`, t: l.title, tag: src ? src.label : '', tagc: 's' }; }));
+    return { items, i: items.findIndex(x => x.bab === L.bab && x.L === d.L) }; }
+  const items = L.atlas.babs.flatMap(b => b.fasls.flatMap(f => f.parts.map((pt, k) => ({ bab: b.n, id: pt.id, h: `#${L.atlas.id}/${b.n}/${pt.id}`, s: tagB(b.n, `F${f.id.split('.')[1]}${f.parts.length > 1 ? '.' + (k + 1) : ''}`), code: `${L.atlas.name} B${b.n} ${pt.label}`, t: pt.title || f.ur, tag: pt.label, tagc: 'f' }))));
+  return { items, i: items.findIndex(x => x.bab === L.bab && x.id === cur) };
 }
 const clean = t => String(t || '').replace(/<[^>]+>/g, '');
 function ddHTML(label, opts, cls, cur, title) {
@@ -589,8 +590,11 @@ function yNav(L) {
   const y = yItems(L), p = y.items[y.i - 1], n = y.items[y.i + 1], me = y.items[y.i];
   if (!me) return '';
   const arrow = (x, cls, ic, word, key) => x ? `<a class="${cls}" href="${x.h}" title="${word}: ${esc(x.code)} · ${esc(clean(x.t))} (${key})">${cls === 'yp' ? ic + `<span>${esc(x.s)}</span>` : `<span>${esc(x.s)}</span>` + ic}</a>` : `<span class="${cls} off" aria-hidden="true">${ic}</span>`;
-  const menu = y.items.map((x, k) => `<a href="${x.h}"${k === y.i ? ' aria-current="page"' : ''}><b>${esc(x.s)}</b><span>${esc(clean(x.t))}</span>${x.tag ? `<i class="${x.tagc}">${esc(x.tag)}</i>` : ''}</a>`).join('');
-  return `<nav class="ynav" aria-label="Lesson number">${arrow(p, 'yp', ICON.prev, 'Previous', 'Shift and right arrow')}<details class="dd ydd"><summary class="ycur">${esc(me.s)}<span class="of">of ${y.items.length}</span><span class="car" aria-hidden="true">▾</span></summary><div class="menu list">${menu}</div></details>${arrow(n, 'yn', ICON.next, 'Next', 'Shift and left arrow')}</nav>`;
+  const many = new Set(y.items.map(x => x.bab)).size > 1; let lastB = null;
+  const menu = y.items.map((x, k) => (many && x.bab !== lastB ? `<span class="mbab"${(lastB = x.bab) === me.bab ? ' data-here' : ''}>Bab ${x.bab}</span>` : '') + `<a href="${x.h}"${k === y.i ? ' aria-current="page"' : ''}><b>${esc(x.s.replace(/^B\d+ /, ''))}</b><span>${esc(clean(x.t))}</span>${x.tag ? `<i class="${x.tagc}">${esc(x.tag)}</i>` : ''}</a>`).join('');
+  const inBab = y.items.filter(x => x.bab === me.bab).length, pos = y.items.filter((x, k) => x.bab === me.bab && k <= y.i).length, num = +((me.s.match(/(\d+)\D*$/) || [])[1]);
+  const ofTxt = (num === pos ? `of ${inBab}` : `${pos} of ${inBab}`) + (many ? ' · B' + me.bab : '');
+  return `<nav class="ynav" aria-label="Lesson number">${arrow(p, 'yp', ICON.prev, 'Previous', 'Shift and right arrow')}<details class="dd ydd"><summary class="ycur">${esc(me.s)}<span class="of">${ofTxt}</span><span class="car" aria-hidden="true">▾</span></summary><div class="menu list">${menu}</div></details>${arrow(n, 'yn', ICON.next, 'Next', 'Shift and left arrow')}</nav>`;
 }
 function zNav(L, tabs, seg) {
   const d = L.d, t = (k, label, n) => `<a href="${hash(seg, k === 'tc' ? {} : { t: k })}"${L.tab === k ? ' aria-current="page"' : ''}>${label}${n ? `<span class="n${k === 'questions' ? ' q' : ''}">${n}</span>` : ''}</a>`;
@@ -610,6 +614,7 @@ document.addEventListener('click', e => {
   $$('details.dd[open]').forEach(dd => { if (!dd.contains(e.target) || e.target.closest('.menu a')) dd.open = false; });
 });
 addEventListener('keydown', e => { if (e.key === 'Escape') $$('details.dd[open]').forEach(dd => { dd.open = false; }); });
+document.addEventListener('toggle', e => { const dd = e.target; if (dd.matches && dd.matches('details.ydd') && dd.open) { const m = $('.menu', dd), a = $('a[aria-current]', dd) || $('[data-here]', dd); if (m && a) m.scrollTop = a.offsetTop - m.clientHeight / 3; } }, true);
 function lesLink(L, n) {
   const b = L.course.babs.find(x => x.n === L.bab); const ls = b ? b.lessons.filter(l => l.L === n) : [];
   const l = ls.find(x => !x.variant && !/-a$/.test(x.slug)) || ls[0];
@@ -924,12 +929,12 @@ async function openPlayer() {
       AU.url = URL.createObjectURL(blob); AU.urlKey = key; AU.cachedMap = map;
     }
     if (a.src !== AU.url) a.src = AU.url;
-    AU.map = map; msg.textContent = '';
+    AU.map = map; msg.textContent = map.stale ? 'This audio was read from an older version of the lesson, so the lit paragraph may be off.' : '';
     a.playbackRate = +LS.get('rate', 1);
     $$('#player button, #player input').forEach(x => { x.disabled = false; });
     const sk = $('#aSeek'); if (sk) sk.max = a.duration || map.dur || 1;
     const at = AU.pos[key] || 0;
-    if (at > 5) { a.currentTime = Math.max(0, at - 3); msg.textContent = `Carrying on from ${fmtT(at - 3)}, where you stopped.`; setTimeout(() => { if (gen === AU.gen && /^Carrying/.test(msg.textContent)) msg.textContent = ''; }, 4000); }
+    if (at > 5 && !map.stale) { a.currentTime = Math.max(0, at - 3); msg.textContent = `Carrying on from ${fmtT(at - 3)}, where you stopped.`; setTimeout(() => { if (gen === AU.gen && /^Carrying/.test(msg.textContent)) msg.textContent = ''; }, 4000); }
     else a.currentTime = 0;
     if (navigator.mediaSession && window.MediaMetadata) navigator.mediaSession.metadata = new MediaMetadata({ title: (S.cur.d.title || '').replace(/<[^>]+>/g, ''), artist: S.cur.d.code || '', album: 'Reading Mode' });
     await a.play().catch(() => { if (gen === AU.gen) msg.textContent = 'Press Play to start.'; });
