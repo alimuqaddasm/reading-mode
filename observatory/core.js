@@ -15,8 +15,27 @@ const setKey = v => { try { v ? localStorage.setItem(KEY, v) : localStorage.remo
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* the five layers, outer to inner */
-const COL = [['#eef2fa', '#c3d2ee'], ['#dbe6fb', '#5b82cc'], ['#8fe3d6', '#0b7a70'], ['#d6c6f7', '#7a5bc4'], ['#ffe9ad', '#d99a1e']];
-const SOLID = ['#c3d2ee', '#2a5bb8', '#0b7a70', '#7a5bc4', '#d99a1e'];
+/* colour palettes. Every colour the City paints comes from here, by the job it does:
+   stage = the work ladder (not started, then three steps of one hue light to dark, then gold for taught: the one accent),
+   ground = streets and plots (neutral, never a data colour), L = class lesson buildings, path = sabaq to lesson,
+   q = open questions, mentor = mentor flags (status colours, always with a label in the panel) */
+const PALETTES = {
+  now: { name: 'Current', stage: ['#c3d2ee', '#2a5bb8', '#0b7a70', '#7a5bc4', '#d99a1e'],
+    distA: '#e8edf7', distC: '#e2f1ee', distLine: '#d3d9e4', blkA: '#dde5f3', blkC: '#d5ebe6', blkE: '#f1efe7', blkP: '#f8f7f2', dashP: '#8fb9b0', road: '#e6e1d2',
+    gnumA: '#7f93bd', gnumC: '#5aa597', L: ['#d99a1e', '#e8b54e'], Lp: ['#efd59a', '#f6e3b8'], path: '#d99a1e', pathP: '#e5c27a', q: '#b4382a', flatA: '#c9d4ea', flatC: '#bfd9d3', beam: '#0b7a70',
+    mentor: { 'with mentor': '#2a5bb8', revising: '#b4382a', final: '#2c7a35' } },
+  ink: { name: 'Ink and gold', stage: ['#d6d5cf', '#7f9fdc', '#456ec4', '#213f85', '#d99a1e'],
+    distA: '#ebeae4', distC: '#f1ebdf', distLine: '#dcd9cf', blkA: '#e1e0d9', blkC: '#e8e0cf', blkE: '#f3f1ea', blkP: '#f8f7f3', dashP: '#b9ad92', road: '#e4ddcc',
+    gnumA: '#9b998f', gnumC: '#a8946d', L: ['#d99a1e', '#e8b54e'], Lp: ['#ece6d6', '#f7f3e9'], path: '#d99a1e', pathP: '#c4b99d', q: '#d4561c', flatA: '#d3d2cb', flatC: '#dcd3bf', beam: '#1d211f',
+    mentor: { 'with mentor': '#7b4fc0', revising: '#b4382a', final: '#2c7a35' } },
+  teal: { name: 'Teal and gold', stage: ['#d6d5cf', '#6fb3a6', '#2b8a7b', '#0c544b', '#d99a1e'],
+    distA: '#ebeae4', distC: '#f1ebdf', distLine: '#dcd9cf', blkA: '#e1e0d9', blkC: '#e8e0cf', blkE: '#f3f1ea', blkP: '#f8f7f3', dashP: '#b9ad92', road: '#e4ddcc',
+    gnumA: '#9b998f', gnumC: '#a8946d', L: ['#d99a1e', '#e8b54e'], Lp: ['#ece6d6', '#f7f3e9'], path: '#d99a1e', pathP: '#c4b99d', q: '#d4561c', flatA: '#d3d2cb', flatC: '#dcd3bf', beam: '#1d211f',
+    mentor: { 'with mentor': '#7b4fc0', revising: '#b4382a', final: '#2c7a35' } },
+};
+const PAL = PALETTES[new URLSearchParams(location.search).get('pal')] || PALETTES.now;
+const SOLID = PAL.stage;
+const COL = SOLID.map(c => [c, c]);
 const ATLAS_LAY = ['In the atlas plan', 'Fasl lesson written', 'Used in a hub sabaq', 'Sabaq refined, deck made', 'Taught in class'];
 const COURSE_LAY = ['Listed in the hub', 'Teacher Copy written', 'Refined and proofed', 'Class-ready, deck made', 'Taught in class'];
 
@@ -144,5 +163,5 @@ function start(ready) {
   $('#keyform').addEventListener('submit', e => { e.preventDefault(); const v = $('#key').value.trim(); if (!v) return; setKey(v); $('#key').value = ''; load(); });
   if (getKey()) load(); else screen('connect');
 }
-window.OBS = { RM, WM, $, esc, reduced, COL, SOLID, ATLAS_LAY, COURSE_LAY, fracs, counts, stageOf, model, bar, side, legendHTML, dropSVG, start };
+window.OBS = { RM, WM, $, esc, reduced, COL, SOLID, PAL, ATLAS_LAY, COURSE_LAY, fracs, counts, stageOf, model, bar, side, legendHTML, dropSVG, start };
 })();
