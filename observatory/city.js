@@ -93,7 +93,7 @@ function draw() {
   districts.forEach((D, di) => {
     ground += `<polygon class="dist" data-d="${di}" points="${rectPoly(D.x - .6, D.y - .6, D.w + 1.2, D.h + 1.2)}" fill="${D.node.kind === 'Atlas' ? '#e8edf7' : '#e2f1ee'}" stroke="#d3d9e4"/>`;
     D.blocks.forEach(B => {
-      ground += `<polygon class="blk" data-d="${di}" data-b="${blocks.indexOf(B)}" points="${rectPoly(B.x - .15 * D.s, B.y - .15 * D.s, B.w + .3 * D.s, B.h + .3 * D.s)}" fill="${B.empty ? '#f1efe7' : D.node.kind === 'Atlas' ? '#dde5f3' : '#d5ebe6'}"/>`;
+      ground += `<polygon class="blk" data-d="${di}" data-b="${blocks.indexOf(B)}" points="${rectPoly(B.x - .15 * D.s, B.y - .15 * D.s, B.w + .3 * D.s, B.h + .3 * D.s)}" fill="${B.node.plan === 'placeholder' ? '#f8f7f2' : B.empty ? '#f1efe7' : D.node.kind === 'Atlas' ? '#dde5f3' : '#d5ebe6'}"${B.node.plan === 'provisional' ? ' stroke="#8fb9b0" stroke-dasharray="5 3"' : B.node.plan === 'placeholder' ? ' stroke="#bdb7a6" stroke-dasharray="1 3.5"' : ''} vector-effect="non-scaling-stroke" stroke-width="1.3"/>`;
       const f = frontOf(B.x, B.y, B.w, B.h), [bx, by] = P(f[0] + .2, f[1] + .2, 0);
       const ur = B.node.ur ? (B.node.ur.length > 26 ? B.node.ur.slice(0, 25) + '…' : B.node.ur) : '';
       if (B.node !== D.node) {   // the Bab number lies flat in the street along the block's front edge, where no plot covers it
@@ -241,7 +241,7 @@ function panel(c) {
   if (!c) {
     const node = focus ? (focus.B ? focus.B.node : focus.D.node) : null;
     if (!node) { const lv = M.kids.flatMap(a => a.levels); el.innerHTML = `<span class="kind">Maarif</span><h2>All atlases and courses</h2><p class="muted">${lv.length.toLocaleString()} atlas Fasls in ${M.kids.length} atlases, and ${M.courses.length} courses. Each course stands beside the atlas it is built from. Click a sign to fly in, click a tower to select it, or press / to search.</p>${groupRows(lv, ATLAS_LAY)}`; return; }
-    el.innerHTML = `<span class="kind">${esc(node.kind)}</span><h2>${esc(node.code)}</h2>${node.ur ? `<div class="ur" lang="ur" dir="rtl">${esc(node.ur)}</div>` : ''}${node.note ? `<p class="muted">${esc(node.note)}</p>` : ''}${node.levels.length ? groupRows(node.levels, node.lay || ATLAS_LAY) : ''}
+    el.innerHTML = `<span class="kind">${esc(node.kind)}</span><h2>${esc(node.code)}</h2>${node.ur ? `<div class="ur" lang="ur" dir="rtl">${esc(node.ur)}</div>` : ''}${node.en ? `<p>${esc(node.en)}</p>` : ''}${node.note ? `<p class="muted">${esc(node.note)}</p>` : ''}${node.levels.length ? groupRows(node.levels, node.lay || ATLAS_LAY) : ''}
       <div class="links">${node.wm ? `<a class="btn" href="${esc(node.wm)}" target="wm">Open in Work Map</a>` : ''}${node.rm ? `<a class="btn" href="${esc(node.rm)}" target="rm">Read in Reading Mode</a>` : ''}</div>`;
     return;
   }
