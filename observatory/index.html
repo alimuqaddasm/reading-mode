@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.github.com; img-src 'self' data:; base-uri 'none'; form-action 'none'">
-<title>Maarif Observatory</title>
+<title>Maarif City</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap">
@@ -14,30 +14,44 @@
 <body>
 <section id="connect" class="solo" hidden>
   <h1>Connect your GitHub key</h1>
-  <p>This page holds no course material. It reads the hub's progress data from your private repo hub-data with the key that stays in this browser, the same key as the Work Map and Reading Mode. If you connected either of them in this browser, this page already works.</p>
+  <p>This page holds no course material. It reads the hub's progress data from your private repos hub-data and hub-notes with the key that stays in this browser, the same key as the Work Map and Reading Mode. If you connected either of them in this browser, this page already works.</p>
   <form id="keyform"><label for="key">GitHub key</label>
     <div class="r"><input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_"><button type="submit" class="btn">Connect</button></div>
     <p id="keyerr" class="err" hidden></p></form>
 </section>
 <div id="app" hidden>
   <header class="top">
-    <a class="brand" href="#"><i class="orb"></i>Maarif Observatory</a>
-    <nav class="views" aria-label="Views"><a class="on" href="index.html">Living blob</a><a href="city.html">City</a><span class="soon" title="Coming next">Globe</span><span class="soon" title="Coming next">Shajara</span></nav>
+    <a class="brand" href="#"><i class="orb"></i>Maarif City</a>
     <nav class="crumb" id="crumb" aria-label="Where you are"></nav>
-    <span class="tools"><span class="made" id="made"></span><a class="btn" href="https://alimuqaddasm.github.io/workmap/" target="wm">Work Map</a><a class="btn" href="https://alimuqaddasm.github.io/reading-mode/" target="rm">Reading Mode</a></span>
+    <div class="search"><input id="q" type="search" placeholder="Search  ZM B1 S9, Akhlaq B5, or Urdu   ( / )" autocomplete="off" spellcheck="false" aria-label="Search the city"><div id="results" class="results" hidden></div></div>
+    <span class="made" id="made"></span>
   </header>
+  <div class="bar2">
+    <select id="preset" aria-label="Show"></select>
+    <div class="chips" id="chips" role="group" aria-label="Filter"></div>
+    <span class="count" id="count"></span><button type="button" class="link" id="clear" hidden>Clear</button>
+  </div>
   <main class="desk">
     <div class="stage" id="stage">
-      <svg id="svg" role="img" aria-label="Living blob of all Maarif work"></svg>
-      <div class="legend" id="legend"></div>
-      <div class="hint" id="hint">Hover a lobe for its numbers · click to go inside · Esc or the path above to come back</div>
-      <div class="drops" id="drops"></div>
+      <svg id="svg" role="img" aria-label="Maarif City: every atlas and course as a district of towers"></svg>
+      <div class="tip" id="tip" hidden></div>
+      <div class="legend" id="legend"><span><i style="background:#2a5bb8"></i>Written <small>(course: Teacher Copy)</small></span><span><i style="background:#0b7a70"></i>In a sabaq <small>(refined)</small></span><span><i style="background:#7a5bc4"></i>Refined, deck <small>(class-ready)</small></span><span><i style="background:#d99a1e"></i>Taught</span><span><i class="flat"></i>Not started</span><span><i class="q"></i>Open questions</span></div>
+      <div class="ctl"><button type="button" class="btn icon" id="zin" title="Zoom in (+)">+</button><button type="button" class="btn icon" id="zout" title="Zoom out (−)">−</button><button type="button" class="btn" id="rotL" title="Turn left (Q)">⟲</button><button type="button" class="btn" id="rotR" title="Turn right (E)">⟳</button><button type="button" class="btn" id="fit" title="Show everything (F)">Show all</button><button type="button" class="btn icon" id="help" title="Help (?)">?</button></div>
+      <div class="minimap" title="Click to jump"><canvas id="mini" width="170" height="116"></canvas><div class="vp" id="vp"></div></div>
+      <div class="helpbox" id="helpbox" hidden><b>Getting around</b>
+        <div><kbd>click</kbd> select a tower: its chain, forms, open questions and mentor status show on the right</div>
+        <div><kbd>double-click</kbd> fly into that Bab · click a sign to fly into a district</div>
+        <div><kbd>drag</kbd> move · <kbd>scroll</kbd> or <kbd>+</kbd> <kbd>−</kbd> zoom · <kbd>Q</kbd> <kbd>E</kbd> turn · <kbd>F</kbd> show all</div>
+        <div><kbd>/</kbd> search · <kbd>Esc</kbd> one step back</div>
+        <div><kbd>←</kbd> <kbd>→</kbd> next tower in the same Bab · <kbd>[</kbd> <kbd>]</kbd> along the chain (atlas Fasl to sabaq and back)</div>
+        <div>Each course stands beside the atlas it is built from. Floors climb as the work goes: written, in a sabaq, refined, taught. Filters dim, they never move anything.</div>
+        <button type="button" class="btn" data-close>Close</button></div>
     </div>
     <aside class="side" id="side" aria-live="polite"></aside>
   </main>
 </div>
 <div id="loading" class="solo" hidden><p>Reading the hub</p></div>
 <script src="core.js"></script>
-<script src="blob.js"></script>
+<script src="city.js"></script>
 </body>
 </html>
