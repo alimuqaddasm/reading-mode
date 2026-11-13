@@ -64,6 +64,22 @@ const PALETTES = {
     gnumA: '#5e7f63', gnumC: '#7c9a6c', L: ['#e2483d', '#ee6e5e'], Lp: ['#36573f', '#416648'], path: '#e2483d', pathP: '#5e7f63', q: '#ffd166', flatA: '#2c4a3a', flatC: '#315240', beam: '#ffffff',
     ink: '#efe9d6', ink2: '#bdc7ad', halo: '#1a2e23', post: '#4e6e55', lroof: '#ffb3a8', ring: '#ffffff',
     mentor: { 'with mentor': '#c9a7ff', revising: '#ff7a6b', final: '#ffd166' } },
+  dawn: { name: 'Dawn', stage: ['#dcdbe6', '#a9a3d6', '#e48f9b', '#f0813a', '#f2be1d'], bg: '#f6f6f9',
+    distA: '#ebebf2', distC: '#f1ecef', distLine: '#d9d8e3', blkA: '#e2e2ec', blkC: '#ebe3e8', blkE: '#f1f1f5', blkP: '#f7f7fa', dashP: '#aaa6c6', road: '#e3e2ea',
+    gnumA: '#9a97b8', gnumC: '#b8909c', L: ['#f2be1d', '#f7d25a'], Lp: ['#ecebf2', '#f8f8fb'], path: '#e6a812', pathP: '#c3c0d6', q: '#3a2f8f', flatA: '#d9d8e4', flatC: '#e3d9df', beam: '#2a2550',
+    ink: '#3f3d56', ink2: '#6b6885', lroof: '#7a5600', mentor: { 'with mentor': '#3a2f8f', revising: '#c2185b', final: '#2e7d32' } },
+  gardenl: { name: 'Garden', stage: ['#d3d9cd', '#9fcb7f', '#4a9650', '#1d5a3a', '#cf3f37'], bg: '#f3f5f0',
+    distA: '#e7ebe3', distC: '#edeae0', distLine: '#d3d9cd', blkA: '#dde3d8', blkC: '#e5e0d3', blkE: '#eff1ec', blkP: '#f6f7f4', dashP: '#a7b29e', road: '#dfe3da',
+    gnumA: '#8d9a86', gnumC: '#a39579', L: ['#cf3f37', '#e0655b'], Lp: ['#e8ece4', '#f6f8f3'], path: '#cf3f37', pathP: '#b9c2b0', q: '#d99a1e', flatA: '#d0d7c9', flatC: '#dbd5c6', beam: '#1d2a22',
+    ink: '#3d4a3f', ink2: '#66705f', lroof: '#8a1f18', mentor: { 'with mentor': '#6a4c93', revising: '#b4382a', final: '#2e7d32' } },
+  riso: { name: 'Riso print', stage: ['#dcdfe9', '#8fa6e8', '#3355d1', '#7a3fb8', '#ff4f9a'], bg: '#fbfbf8',
+    distA: '#eef0f7', distC: '#f6eef3', distLine: '#dcdfeb', blkA: '#e4e8f4', blkC: '#f1e4ec', blkE: '#f3f3f1', blkP: '#f8f8f6', dashP: '#a9b3d6', road: '#e6e7ee',
+    gnumA: '#8c98c4', gnumC: '#c48fab', L: ['#ff4f9a', '#ff7db5'], Lp: ['#eceef5', '#f8f8fb'], path: '#ff4f9a', pathP: '#c3c9de', q: '#ffb000', flatA: '#d8dce8', flatC: '#e6d8e0', beam: '#1b2a6b',
+    ink: '#26336b', ink2: '#56608f', lroof: '#b0105a', mentor: { 'with mentor': '#3355d1', revising: '#ff4f9a', final: '#1f9d55' } },
+  callig: { name: 'Calligraphy', stage: ['#dcdcd8', '#b9b9b4', '#77777a', '#2e2e33', '#d99a1e'], bg: '#fafaf9',
+    distA: '#ededeb', distC: '#f2f0ec', distLine: '#d8d7d3', blkA: '#e3e3e0', blkC: '#e9e6e0', blkE: '#f2f2f0', blkP: '#f7f7f6', dashP: '#a9a8a2', road: '#e3e2df',
+    gnumA: '#9a9a95', gnumC: '#a8977a', L: ['#d99a1e', '#e8b54e'], Lp: ['#ececea', '#f8f8f7'], path: '#d99a1e', pathP: '#c4c3bd', q: '#d6336c', flatA: '#d6d6d2', flatC: '#dedad2', beam: '#1d1d20',
+    ink: '#3a3a3e', ink2: '#6b6b6f', mentor: { 'with mentor': '#3b5bdb', revising: '#d6336c', final: '#2b8a3e' } },
 };
 const PAL_BASE = { bg: '#fbfaf6', ink: '#4f5753', ink2: '#6b736f', halo: '#fffdf8', post: '#b9c4bf', lroof: '#7a4f00', ring: '#1d211f', dark: false };
 const PAL = Object.assign({}, PAL_BASE, PALETTES[new URLSearchParams(location.search).get('pal')] || PALETTES.now);
