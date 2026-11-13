@@ -5,7 +5,7 @@
 (function () {
 'use strict';
 const OWNER = 'alimuqaddasm', KEY = 'workmap.key';
-const API = `https://api.github.com/repos/${OWNER}/hub-data/contents/`;
+const API = `https://api.github.com/repos/${OWNER}/hub-data/contents/`, API_NOTES = `https://api.github.com/repos/${OWNER}/hub-notes/contents/`;
 const RM = 'https://alimuqaddasm.github.io/reading-mode/', WM = 'https://alimuqaddasm.github.io/workmap/';
 const $ = s => document.querySelector(s);
 const NS = 'http://www.w3.org/2000/svg';
@@ -21,8 +21,8 @@ const ATLAS_LAY = ['In the atlas plan', 'Fasl lesson written', 'Used in a hub sa
 const COURSE_LAY = ['Listed in the hub', 'Teacher Copy written', 'Refined and proofed', 'Class-ready, deck made', 'Taught in class'];
 
 /* ---------- data ---------- */
-async function raw(path) {
-  const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + getKey(), Accept: 'application/vnd.github.raw+json', 'X-GitHub-Api-Version': '2022-11-28' }, cache: 'no-cache' });
+async function raw(path, base) {
+  const r = await fetch((base || API) + path, { headers: { Authorization: 'Bearer ' + getKey(), Accept: 'application/vnd.github.raw+json', 'X-GitHub-Api-Version': '2022-11-28' }, cache: 'no-cache' });
   if (!r.ok) { const e = new Error(r.status === 401 ? 'GitHub refused the key.' : r.status === 404 ? 'This key cannot open hub-data.' : 'GitHub answered ' + r.status); e.status = r.status; throw e; }
   return r.json();
 }
@@ -59,16 +59,16 @@ function model(w) {
   atlases.sort((x, y) => order.indexOf(x.short.toLowerCase()) - order.indexOf(y.short.toLowerCase()));
   const courses = w.courses.map(c => {
     const babs = c.babs.map(b => {
-      const kids = b.hub.map(H => ({ kind: 'Sabaq', code: `${c.code} B${b.n} S${H.h}`, short: 'S' + H.h, ur: H.ur, size: 1, lay: COURSE_LAY, unit: 'Fasls and class lesson',
+      const kids = b.hub.map(H => ({ kind: 'Sabaq', cid: c.id, bab: b.n, n: H.h, has: H.has || [], code: `${c.code} B${b.n} S${H.h}`, short: 'S' + H.h, ur: H.ur, size: 1, lay: COURSE_LAY, unit: 'Fasls and class lesson',
         levels: [H.L && H.Ls === 'taught' ? 4 : stageOf(H.has)], L: H.L ? `L${H.L} ${H.Ls}` : '', fasls: H.fasls || [], fkeys: (H.fasls || []).map(u => c.atlas + ':' + u.replace(/^U/, '').split('-')[0]),
         Lnode: H.L ? { kind: 'Class lesson', code: `${c.code} B${b.n} L${H.L}`, short: 'L' + H.L, ur: H.ur, size: 1, lay: COURSE_LAY, levels: [H.Ls === 'taught' ? 4 : stageOf(H.has)], note: H.Ls === 'taught' ? 'Taught in class' : 'Planned, not taught yet', wm: `${WM}#course?c=${c.id}&b=${b.n}&s=${c.id}-${b.n}-${H.h}`, rm: `${RM}#${c.id}/${b.n}/${H.h}` } : null,
         wm: `${WM}#course?c=${c.id}&b=${b.n}&s=${c.id}-${b.n}-${H.h}`, rm: `${RM}#${c.id}/${b.n}/${H.h}` }));
       return { kind: 'Bab', code: `${c.code} B${b.n}`, short: 'B' + b.n, ur: '', size: Math.max(1, kids.length), levels: kids.map(k => k.levels[0]), empty: !kids.length, lay: COURSE_LAY, kids,
         wm: `${WM}#course?c=${c.id}&b=${b.n}`, rm: `${RM}#${c.id}`, unit: 'sabaq', note: kids.length ? `Built on ${c.atlas} B${b.from}` : `Hub: ${b.hub_state}` };
     });
-    return { kind: 'Course', code: c.code, short: c.code, ur: c.ur, size: 1, levels: babs.flatMap(b => b.levels), lay: COURSE_LAY, kids: babs, wm: `${WM}#course?c=${c.id}`, rm: `${RM}#${c.id}`, unit: 'sabaq', atlas: c.atlas };
+    return { kind: 'Course', id: c.id, code: c.code, short: c.code, ur: c.ur, size: 1, levels: babs.flatMap(b => b.levels), lay: COURSE_LAY, kids: babs, wm: `${WM}#course?c=${c.id}`, rm: `${RM}#${c.id}`, unit: 'sabaq', atlas: c.atlas };
   });
-  if (w.muqaddima) { const m = w.muqaddima; const kids = m.lessons.map(l => ({ kind: 'Lesson', code: l.code, short: l.code.replace('MRF-', ''), ur: l.ur, size: 1, lay: COURSE_LAY, levels: [stageOf(l.has)], wm: `${WM}#course?c=mrf`, rm: `${RM}#mrf/1/${l.code}` }));
+  if (w.muqaddima) { const m = w.muqaddima; const kids = m.lessons.map(l => ({ kind: 'Lesson', cid: 'mrf', has: l.has || [], code: l.code, short: l.code.replace('MRF-', ''), ur: l.ur, size: 1, lay: COURSE_LAY, levels: [stageOf(l.has)], wm: `${WM}#course?c=mrf`, rm: `${RM}#mrf/1/${l.code}` }));
     courses.push({ kind: 'Course', code: m.code, short: m.code, ur: m.ur, size: 1, levels: kids.map(k => k.levels[0]), lay: COURSE_LAY, kids, wm: `${WM}#course?c=mrf`, rm: `${RM}#mrf`, unit: 'lessons', note: 'Its own source book, no atlas' }); }
   if (w.tazzakur) { const z = w.tazzakur; const lv = s => /taught|held|given/i.test(s.state || '') ? 4 : /deck/i.test(s.state || '') ? 3 : /proof|refin/i.test(s.state || '') ? 2 : 1;
     const kids = z.sessions.map(s => ({ kind: 'Session', code: s.code, short: s.code.replace('MS-', ''), ur: s.ur, size: 1, lay: COURSE_LAY, levels: [lv(s)], note: `${s.date} · ${s.kind} · ${s.state}`, wm: `${WM}#course?c=taz`, rm: RM + '#taz' }));
@@ -111,13 +111,25 @@ function dropSVG(k) {
 }
 function legendHTML(lay) { return `<b>${lay === ATLAS_LAY ? 'How far each Fasl went' : 'How far each lesson went'}</b>` + lay.map((t, i) => `<span><i style="background:${i ? `radial-gradient(circle at 40% 35%,${COL[i][0]},${COL[i][1]})` : COL[0][1]}"></i>${t}</span>`).join(''); }
 
+/* open questions (from Reading Mode's index) and mentor status (from hub-notes marks.json) on each sabaq */
+function annotate(M, ri, marks) {
+  const q = {};
+  if (ri) for (const c of ri.courses) for (const b of c.babs) for (const s of b.sabaq) q[`${c.id}/${b.n}/${s.n}`] = { q: s.q || 0, notes: s.notes || 0 };
+  for (const c of M.courses) for (const b of c.kids || []) for (const s of b.kids || []) {
+    if (s.kind !== 'Sabaq') continue;
+    const x = q[`${s.cid}/${s.bab}/${s.n}`]; if (x) { s.q = x.q; s.notes = x.notes; }
+    const m = ((marks || {})[s.cid] || {})[`B${s.bab} S${s.n}`]; if (m) s.mentor = m;
+  }
+}
+
 /* ---------- start: key, then data, then the view ---------- */
 const screen = id => ['connect', 'app', 'loading'].forEach(x => { $('#' + x).hidden = x !== id; });
 function start(ready) {
   async function load() {
     screen('loading');
     try {
-      const w = await raw('workmap.json'); const M = model(w);
+      const [w, ri, marks] = await Promise.all([raw('workmap.json'), raw('reading/index.json').catch(() => null), raw('marks.json', API_NOTES).catch(() => ({}))]);
+      const M = model(w); annotate(M, ri, marks || {});
       $('#made').textContent = 'Updated ' + String(w.made || '').replace(/^\d{4}-/, '').replace(' UTC', '');
       screen('app'); ready(M, w);
     } catch (e) {
