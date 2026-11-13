@@ -40,8 +40,33 @@ const PALETTES = {
     distA: '#f2ead8', distC: '#ece6da', distLine: '#ddd3bd', blkA: '#e9dfc6', blkC: '#e3dccd', blkE: '#f5f0e5', blkP: '#f9f6ef', dashP: '#b8a77f', road: '#e6dbc3',
     gnumA: '#a58d5f', gnumC: '#9a8668', L: ['#d4a017', '#e8bf4a'], Lp: ['#efe8d8', '#f8f4ea'], path: '#c99a17', pathP: '#c9bb98', q: '#7a1f5c', flatA: '#ddd2b8', flatC: '#d8d0bf', beam: '#3b2f2a',
     mentor: { 'with mentor': '#2c4a9a', revising: '#7a1f5c', final: '#2e7d32' } },
+  stone: { name: 'Shrine on stone', stage: ['#cfd3d1', '#b5603a', '#1f9e96', '#22398f', '#d4a017'], bg: '#f1f2f1',
+    distA: '#e3e6e5', distC: '#ebe9e3', distLine: '#d2d6d4', blkA: '#d9dddc', blkC: '#e2dfd7', blkE: '#eeefed', blkP: '#f5f6f5', dashP: '#a4aaa7', road: '#d9dcd9',
+    gnumA: '#8e9895', gnumC: '#9a8f7c', L: ['#d4a017', '#e8bf4a'], Lp: ['#e9ebea', '#f7f8f7'], path: '#c99a17', pathP: '#b3b8b5', q: '#9b1d4b', flatA: '#cdd2d0', flatC: '#d6d2c8', beam: '#26302d',
+    mentor: { 'with mentor': '#6a4c93', revising: '#9b1d4b', final: '#2e7d32' } },
+  kiln: { name: 'Kiln', dark: true, stage: ['#3a302a', '#7a2e1f', '#c4501f', '#ee8a2a', '#ffd36b'], bg: '#17120f',
+    distA: '#221b17', distC: '#2a211b', distLine: '#3a3029', blkA: '#2b231e', blkC: '#33291f', blkE: '#201a16', blkP: '#1c1714', dashP: '#7a6656', road: '#2e2620',
+    gnumA: '#6e5c4f', gnumC: '#8a6a4c', L: ['#ffd36b', '#ffe39a'], Lp: ['#4a3c33', '#5a4a3f'], path: '#ffd36b', pathP: '#6e5c4f', q: '#7fd3e6', flatA: '#3a302a', flatC: '#40352c', beam: '#ffffff',
+    ink: '#e9dccb', ink2: '#b5a593', halo: '#17120f', post: '#5a4a3f', lroof: '#ffd36b', ring: '#ffffff',
+    mentor: { 'with mentor': '#9db4ff', revising: '#ff6b6b', final: '#7ed389' } },
+  midnight: { name: 'Midnight', dark: true, stage: ['#22324f', '#3b5378', '#5b86c4', '#9cc3f5', '#ffc85a'], bg: '#0f1a2e',
+    distA: '#15233d', distC: '#1a2944', distLine: '#2a3b5c', blkA: '#1b2a46', blkC: '#203150', blkE: '#14203a', blkP: '#122036', dashP: '#4b6390', road: '#1f2e4a',
+    gnumA: '#4b6390', gnumC: '#5d77a6', L: ['#ffc85a', '#ffd98a'], Lp: ['#2a3b5c', '#33476d'], path: '#ffc85a', pathP: '#4b6390', q: '#ff7a8a', flatA: '#22324f', flatC: '#263756', beam: '#ffffff',
+    ink: '#dfe7f5', ink2: '#a9b8d3', halo: '#0f1a2e', post: '#3b4f74', lroof: '#ffc85a', ring: '#ffffff',
+    mentor: { 'with mentor': '#c9a7ff', revising: '#ff7a8a', final: '#7ed389' } },
+  blueprint: { name: 'Blueprint', dark: true, stage: ['#2a5793', '#6f9bd6', '#b3cff2', '#ffffff', '#ffcc4d'], bg: '#16386b',
+    distA: '#1b4178', distC: '#1f4782', distLine: '#3e68a3', blkA: '#20497f', blkC: '#245089', blkE: '#1a3f73', blkP: '#183b6c', dashP: '#6f9bd6', road: '#285591',
+    gnumA: '#5f8ac4', gnumC: '#7fa3d6', L: ['#ffcc4d', '#ffdb80'], Lp: ['#2f5f9e', '#3a6bab'], path: '#ffcc4d', pathP: '#5f8ac4', q: '#ff8a65', flatA: '#2a5793', flatC: '#2e5d9b', beam: '#ffcc4d',
+    ink: '#f2f6ff', ink2: '#bcd0ee', halo: '#16386b', post: '#5f8ac4', lroof: '#ffcc4d', ring: '#ffffff',
+    mentor: { 'with mentor': '#c9a7ff', revising: '#ff8a65', final: '#8fe3a1' } },
+  garden: { name: 'Persian garden', dark: true, stage: ['#2c4a3a', '#5e9a5c', '#b7d36a', '#f2a7b8', '#e2483d'], bg: '#1a2e23',
+    distA: '#1e3529', distC: '#24402f', distLine: '#36573f', blkA: '#25412f', blkC: '#2b4a36', blkE: '#1b3025', blkP: '#192c22', dashP: '#5e7f63', road: '#2f4f3a',
+    gnumA: '#5e7f63', gnumC: '#7c9a6c', L: ['#e2483d', '#ee6e5e'], Lp: ['#36573f', '#416648'], path: '#e2483d', pathP: '#5e7f63', q: '#ffd166', flatA: '#2c4a3a', flatC: '#315240', beam: '#ffffff',
+    ink: '#efe9d6', ink2: '#bdc7ad', halo: '#1a2e23', post: '#4e6e55', lroof: '#ffb3a8', ring: '#ffffff',
+    mentor: { 'with mentor': '#c9a7ff', revising: '#ff7a6b', final: '#ffd166' } },
 };
-const PAL = PALETTES[new URLSearchParams(location.search).get('pal')] || PALETTES.now;
+const PAL_BASE = { bg: '#fbfaf6', ink: '#4f5753', ink2: '#6b736f', halo: '#fffdf8', post: '#b9c4bf', lroof: '#7a4f00', ring: '#1d211f', dark: false };
+const PAL = Object.assign({}, PAL_BASE, PALETTES[new URLSearchParams(location.search).get('pal')] || PALETTES.now);
 const SOLID = PAL.stage;
 const COL = SOLID.map(c => [c, c]);
 const ATLAS_LAY = ['In the atlas plan', 'Fasl lesson written', 'Used in a hub sabaq', 'Sabaq refined, deck made', 'Taught in class'];

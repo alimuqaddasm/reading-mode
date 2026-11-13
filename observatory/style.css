@@ -137,3 +137,8 @@ kbd{font-family:var(--ui);font-size:11.5px;border:1px solid var(--rule);border-b
 #svg.z0 .lroof{display:inline}
 #svg .gnum{pointer-events:none}
 .legend i.l{background:linear-gradient(#d99a1e 0 33%,#e8b54e 33% 66%,#d99a1e 66%)}
+/* night palettes: the map's own panels sit in the same dark */
+.stage[data-pal=dark] .legend,.stage[data-pal=dark] .minimap{background:rgba(12,12,14,.72);border-color:rgba(255,255,255,.14);color:#e6e2d8}
+.stage[data-pal=dark] .legend small{color:rgba(230,226,216,.6)}
+.stage[data-pal=dark] .minimap .vp{border-color:#fff}
+.stage[data-pal=dark] .ctl .btn{background:rgba(12,12,14,.72);color:#eee9dd;border-color:rgba(255,255,255,.18)}
