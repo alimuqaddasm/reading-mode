@@ -15,7 +15,7 @@ function legend() {   // the key follows what you look at: atlas steps, course s
   const names = k === 'Atlas' ? ['Fasl written', 'Used in a sabaq', 'Sabaq refined, deck', 'Taught'] : k ? ['Teacher Copy written', 'Refined', 'Deck made', 'Taught'] : ['Written', 'In a sabaq (atlas) · refined (course)', 'Deck made', 'Taught'];
   const sw = (c, t, extra) => `<span><i style="background:${c}${extra || ''}"></i>${t}</span>`;
   lg.innerHTML = `<span class="ramp">${names.map((t, i) => sw(SOLID[i + 1], t)).join('')}</span>${sw(PAL.flatA, 'Not started')}<button type="button" class="link" id="lgmore" aria-expanded="${legendMore}">${legendMore ? 'Less' : 'More'}</button>`
-    + (legendMore ? `<span class="lgx">${sw(PAL.L[0], 'Class lesson: a hall, one lit window per form made, gold dome once taught')}${sw('transparent', 'Being written', `;border:1.5px dashed ${SOLID[1]}`)}${sw(PAL.q, 'Open questions', ';border-radius:50%')}${sw(PAL.accentWash, 'Changed today', `;border:1.5px solid ${PAL.accent}`)}${sw(PAL.blkE, 'Bab not settled (dotted: old atlas Bab kept as a placeholder)', `;border:1.5px dashed ${PAL.dashP}`)}</span>` : '');
+    + (legendMore ? `<span class="lgx">${sw(PAL.L[0], 'Class lesson: a classroom, one roof tile per form (gold when made), the whole building gold once taught')}${sw('transparent', 'Being written', `;border:1.5px dashed ${SOLID[1]}`)}${sw(PAL.q, 'Open questions', ';border-radius:50%')}${sw(PAL.accentWash, 'Changed today', `;border:1.5px solid ${PAL.accent}`)}${sw(PAL.blkE, 'Bab not settled (dotted: old atlas Bab kept as a placeholder)', `;border:1.5px dashed ${PAL.dashP}`)}</span>` : '');
 }
 const svg = $('#svg');
 let M = null, rot = 0, cells = [], districts = [], blocks = [], roads = [], W = 0, H = 0;
@@ -85,6 +85,10 @@ function rectPoly(x, y, w, h) { return pts([[x, y], [x + w, y], [x + w, y + h], 
 function frontOf(x, y, w, h) { return [[x, y + h], [x + w, y + h], [x + w, y], [x, y]].map(([a, b]) => turn(a, b)).reduce((m, c) => c[0] + c[1] > m[0] + m[1] ? c : m); }
 const shade = (hex, f) => { const n = parseInt(hex.slice(1), 16), c = [n >> 16, (n >> 8) & 255, n & 255], to = f > 1 ? [255, 253, 248] : [42, 37, 80], t = f > 1 ? Math.min(.6, (f - 1) * 2.2) : Math.min(.6, (1 - f) * 1.15);
   return `rgb(${c.map((v, i) => Math.round(v + (to[i] - v) * t))})`; };   // mix toward paper for lit faces, toward ink for shaded ones
+function hullOf(x, y, w, z) {   // the screen outline of a plot and what stands on it, for picking
+  const p = [P(x, y, z), P(x + w, y, z), P(x + w, y, 0), P(x + w, y + w, 0), P(x, y + w, 0), P(x, y + w, z)], xs = p.map(q => q[0]), ys = p.map(q => q[1]);
+  return { p, x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+}
 function outline(x, y, z0, z1, w, col) {   // the tower's silhouette and its front edges, drawn once over its floors
   const At = P(x, y, z1), Bt = P(x + w, y, z1), Ct = P(x + w, y + w, z1), Dt = P(x, y + w, z1), Bb = P(x + w, y, z0), Cb = P(x + w, y + w, z0), Db = P(x, y + w, z0), f = p => p[0].toFixed(1) + ',' + p[1].toFixed(1);
   return `<path class="ol" d="M${f(At)}L${f(Bt)}L${f(Bb)}L${f(Cb)}L${f(Db)}L${f(Dt)}Z M${f(Dt)}L${f(Ct)}L${f(Bt)} M${f(Ct)}L${f(Cb)}" fill="none" stroke="${shade(col, .45)}" stroke-opacity=".55" stroke-width=".7" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
@@ -141,7 +145,7 @@ function draw() {
   const order = cells.slice().sort((a, b) => (a.rx + a.ry) - (b.rx + b.ry));
   for (const c of order) {
     const w = TOWER * c.s, o = (c.s - w) / 2, fh = FLOOR * c.s; let g = '';
-    if (c.isL) { g = hall(c); 
+    if (c.isL) { g = lessonShape(c); c.hull = hullOf(c.rx, c.ry, c.s, 0.55 * c.s); 
       if (c.fresh) fresh += `<polygon class="fr" data-i="${c.i}" points="${pts([P(c.rx, c.ry, 0), P(c.rx + c.s, c.ry, 0), P(c.rx + c.s, c.ry + c.s, 0), P(c.rx, c.ry + c.s, 0)])}"/>`;
       towers.push(`<g class="c L" data-i="${c.i}">${g}</g>`);
       roofs += `<text class="lroof" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 3).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="${PAL.lroof}" stroke="${PAL.halo}" stroke-width="3" paint-order="stroke">${esc(c.node.short)}</text>`;
@@ -153,8 +157,10 @@ function draw() {
     if (c.fresh) fresh += `<polygon class="fr" data-i="${c.i}" points="${pts([P(c.rx, c.ry, 0), P(c.rx + c.s, c.ry, 0), P(c.rx + c.s, c.ry + c.s, 0), P(c.rx, c.ry + c.s, 0)])}"/>`;
     const zt = c.node.running ? (c.zh || 0) + fh : (c.zh || 0);
     if (zt > 0) { g += outline(c.rx + o, c.ry + o, 0, zt, w, SOLID[Math.max(1, Math.min(4, lv || 1))]); shadows[c.B.i] = (shadows[c.B.i] || '') + shadowPath(c.rx + o, c.ry + o, w, zt); }
+    if (zt > 0) { const lab = c.node.short, topLv = c.node.running && !lv ? 0 : lv, fs = Math.min(3.1, w * U * 0.74 / (lab.length * 0.62)), [dx, dy] = P(c.rx + o + w / 2, c.ry + o + w, (c.node.running && !lv ? zt : (c.zh || zt)) - fh / 2);
+      g += `<text class="door" transform="matrix(0.866 0.5 0 1 ${dx.toFixed(1)} ${dy.toFixed(1)})" font-size="${fs.toFixed(2)}" font-weight="700" text-anchor="middle" dominant-baseline="central" fill="${topLv >= 2 ? '#fff' : '#2a2550'}" fill-opacity="${topLv >= 2 ? .95 : .8}">${esc(lab)}</text>`; }
+    c.hull = hullOf(c.rx, c.ry, c.s, zt);
     towers.push(`<g class="c" data-i="${c.i}">${g}</g>`);
-    if (lv >= 1) roofs += `<text class="roof" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 2).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="${PAL.ink}" stroke="${PAL.halo}" stroke-width="2.5" paint-order="stroke">${esc(c.node.short)}</text>`;
     if (c.props.q) marks += `<circle class="mk" data-i="${c.i}" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 4).toFixed(1)}" cx="11" cy="-5" r="3.4" fill="${PAL.q}" stroke="#fff" stroke-width="1"/>`;
     if (c.node.mentor) { const col = PAL.mentor[c.node.mentor.status] || '#6b736f'; marks += `<g class="mk flag" data-i="${c.i}" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 2).toFixed(1)}"><g transform="translate(-12,0)"><line x1="0" y1="0" x2="0" y2="-12" stroke="#1d211f" stroke-width="1"/><path d="M0,-12 L8,-9 L0,-6Z" fill="${col}"/></g></g>`; }
   }
@@ -171,21 +177,15 @@ function shadowPath(x, y, w, z) {   // the light comes from the back left, so ea
   const d = Math.min(2.2, z * 0.55), q = [P(x, y, 0), P(x + w + d, y, 0), P(x + w + d, y + w, 0), P(x, y + w, 0)];
   return 'M' + q.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('L') + 'Z';
 }
-/* a class lesson is a hall: eight windows, one per form (Teacher Copy, Handout, Refined, Deck, QA deck, Tafseer, Flowchart, Audio),
-   lit gold when that form is made; a gold dome once the lesson is taught, a pale outlined dome while it is only planned */
-function hall(c) {
-  const wl = 0.9 * c.s, o = (c.s - wl) / 2, x = c.rx + o, y = c.ry + o, h = 1.15 * c.s, made = new Set(formsOf(c.node).map(f => f[1]));
-  let g = prism(x, y, 0, h, wl, '#efe9dc');
-  const win = (face, k, on) => { const a = 0.1 + k * 0.215, b = a + 0.14, z0 = 0.3 * h, z1 = 0.78 * h;
-    const q = face === 'L' ? [P(x + a * wl, y + wl, z0), P(x + b * wl, y + wl, z0), P(x + b * wl, y + wl, z1), P(x + a * wl, y + wl, z1)]
-                           : [P(x + wl, y + a * wl, z0), P(x + wl, y + b * wl, z0), P(x + wl, y + b * wl, z1), P(x + wl, y + a * wl, z1)];
-    return `<polygon points="${pts(q)}" fill="${on ? PAL.L[0] : '#cfc8b8'}"${on ? '' : ' fill-opacity=".7"'}/>`; };
-  FORMS_L.forEach(([, t], i) => { g += win(i < 4 ? 'L' : 'R', i % 4, made.has(t)); });
-  const [cx, cy] = P(x + wl / 2, y + wl / 2, h), r = wl * 0.36, rx = r * 1.2247 * U, ry = r * 0.7071 * U, rd = r * 1.25 * U, t = c.node.taught;
-  g += `<path d="M${(cx - rx).toFixed(1)},${cy.toFixed(1)} A${rx.toFixed(1)},${rd.toFixed(1)} 0 0 1 ${(cx + rx).toFixed(1)},${cy.toFixed(1)} A${rx.toFixed(1)},${ry.toFixed(1)} 0 0 1 ${(cx - rx).toFixed(1)},${cy.toFixed(1)}Z" fill="${t ? PAL.L[0] : '#f7f3ea'}" stroke="${t ? shade(PAL.L[0], .8) : '#b9b09c'}" stroke-width="1" ${t ? '' : 'stroke-dasharray="2.5 2"'} vector-effect="non-scaling-stroke"/>`;
-  if (t) g += `<line x1="${cx.toFixed(1)}" y1="${(cy - rd).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${(cy - rd - 0.25 * U).toFixed(1)}" stroke="${shade(PAL.L[0], .7)}" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
-  c.top = [cx, cy - rd - (t ? 0.3 * U : 0)]; g += outline(x, y, 0, h, wl, '#efe9dc'); shadows[c.B.i] = (shadows[c.B.i] || '') + shadowPath(x, y, wl, h);
-  return g;
+/* a class lesson is a low classroom whose roof is eight tiles, one per form (Teacher Copy, Handout, Refined, Deck, QA deck,
+   Tafseer, Flowchart, Audio): a tile turns gold when that form is made, and the whole building turns gold once the lesson is taught */
+function lessonShape(c) {
+  const wl = 0.92 * c.s, o = (c.s - wl) / 2, x = c.rx + o, y = c.ry + o, h = 0.55 * c.s, t = c.node.taught, made = new Set(formsOf(c.node).map(f => f[1]));
+  let g = prism(x, y, 0, h, wl, t ? '#f2cf6a' : '#ece6d8');
+  FORMS_L.forEach(([, nm], i) => { const col = i % 4, row = Math.floor(i / 4), a = x + wl * (0.06 + col * 0.225), b = a + wl * 0.19, e = y + wl * (0.08 + row * 0.45), f2 = e + wl * 0.38;
+    g += `<polygon points="${pts([P(a, e, h), P(b, e, h), P(b, f2, h), P(a, f2, h)])}" fill="${made.has(nm) ? (t ? '#c2501a' : PAL.L[0]) : (t ? '#f7e3a6' : '#d9d2c2')}"/>`; });
+  g += outline(x, y, 0, h, wl, t ? '#f2cf6a' : '#ece6d8'); shadows[c.B.i] = (shadows[c.B.i] || '') + shadowPath(x, y, wl, h);
+  c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, h); return g;
 }
 function wire(x, y, z0, h, w, col) {   // a floor being written now: an outline, not yet filled
   const z1 = z0 + h, top = [P(x, y, z1), P(x + w, y, z1), P(x + w, y + w, z1), P(x, y + w, z1)];
@@ -211,7 +211,6 @@ function apply() {
   if (!flight && !glide) { unclash(g.querySelectorAll('.sign')); declutter(); }
   if (k > 1.5) fix('.blab', inv);
   if (k > 2.2) fix('.mk', inv);
-  if (k > 3.4) fix('.roof', inv);
   viewport();
 }
 let lastDK = 0, dkTimer = null;
@@ -221,7 +220,7 @@ function declutter() {   // order of importance: signs, class lesson names, Urdu
     lastDK = cam.k; declutter.force = false; const g = $('#world'); if (!g) return;
     const boxes = [], k = cam.k, hit = r => boxes.some(b => r.l < b.r && r.r > b.l && r.t < b.b && r.b > b.t);
     g.querySelectorAll('.sign').forEach(sg => { if (sg.style.display === 'none') return; const r = sg.getBoundingClientRect(); boxes.push({ l: r.left, r: r.right, t: r.top, b: r.bottom }); });
-    for (const sel of ['.lroof', '.blab', '.roof']) g.querySelectorAll(sel).forEach(el => {
+    for (const sel of ['.lroof', '.blab']) g.querySelectorAll(sel).forEach(el => {
       if (getComputedStyle(el).display === 'none') return; el.style.visibility = '';
       const r = el.getBoundingClientRect(), bx = { l: r.left - 3, r: r.right + 3, t: r.top - 1, b: r.bottom + 1 };
       if (r.width && hit(bx)) el.style.visibility = 'hidden'; else boxes.push(bx); });
@@ -323,6 +322,8 @@ function beams() {
   for (const t of to) { const [x1, y1] = c.top, [x2, y2] = t.top, mx = (x1 + x2) / 2, my = Math.min(y1, y2) - Math.hypot(x2 - x1, y2 - y1) * 0.3 - 18;
     h += `<path d="M${x1},${y1} Q${mx},${my} ${x2},${y2}" fill="none" stroke="${PAL.beam}" stroke-width="2" vector-effect="non-scaling-stroke" opacity=".9"/>`; }
   g.innerHTML = h;
+  if (!reduced) g.querySelectorAll('path').forEach((pth, i) => { const L = pth.getTotalLength() * cam.k + 4; pth.style.strokeDasharray = L; pth.style.strokeDashoffset = L;
+    pth.style.transition = `stroke-dashoffset .4s cubic-bezier(.22,1,.36,1) ${80 + i * 40}ms`; requestAnimationFrame(() => requestAnimationFrame(() => { pth.style.strokeDashoffset = 0; })); });
 }
 function pinPaint() {
   const g = $('#towers'); if (!g) return;
@@ -330,8 +331,10 @@ function pinPaint() {
   for (const el of g.children) { el.classList.toggle('faded', !!keep && !keep.has(+el.dataset.i)); el.classList.toggle('sel', !!pinned && +el.dataset.i === pinned.i); }
   beams();
 }
+let navDir = 'in';
+function slide() { const el = $('#side'); if (reduced || navDir === 'none') { navDir = 'in'; return; } el.classList.remove('in', 'back'); void el.offsetWidth; el.classList.add(navDir === 'back' ? 'back' : 'in'); navDir = 'in'; }
 function select(c, fly) { pinned = c; if (fly) flyToBlock(c.B); pinPaint(); panel(c); hashSet(); }
-function unpin() { if (!pinned) return; pinned = null; pinPaint(); panel(null); hashSet(); }
+function unpin() { if (!pinned) return; pinned = null; navDir = 'back'; pinPaint(); panel(null); hashSet(); }
 const FORMS = FORMS_L;
 function groupRows(levels, lay) {
   const n = levels.length || 1, cnt = k => levels.filter(l => l >= k).length;
@@ -377,9 +380,9 @@ function panel(c) {
     const fr = !B && D.fresh.length ? `<div class="card"><h3>Changed in the last 24 hours</h3>${D.fresh.slice(0, 5).map(ch => `<div class="chg"><b>${esc(rel(ch.when))}</b> <span class="${ch.saved ? 'ok' : 'warn'}">${ch.saved ? 'saved on main' : 'on branch ' + esc(ch.ref) + ', not saved'}</span><div class="muted">${esc(ch.last.length > 110 ? ch.last.slice(0, 108) + '…' : ch.last)}</div></div>`).join('')}</div>` : '';
     el.innerHTML = `<span class="kind">${esc(node.kind)}</span><h2>${esc(node.code)}</h2>${node.ur ? `<div class="ur" lang="ur" dir="rtl">${esc(node.ur)}</div>` : ''}${node.en ? `<p>${esc(node.en)}</p>` : ''}${node.note ? `<p class="muted">${esc(node.note)}</p>` : ''}${!B ? `<p class="facts">${esc(facts(D).line)}</p>` : ''}${node.levels.length ? groupRows(node.levels, node.lay || ATLAS_LAY) : ''}<div class="acts"><button type="button" class="btn sm" data-act="sum">Copy summary</button><button type="button" class="btn sm" data-act="link">Copy link</button></div>${fr}${rows}
       <div class="links">${node.wm ? `<a class="btn" href="${esc(node.wm)}" target="wm">Open in Work Map</a>` : ''}${node.rm ? `<a class="btn" href="${esc(node.rm)}" target="rm">Read in Reading Mode</a>` : ''}</div>`;
-    return;
+    slide(); return;
   }
-  if (c.isL) return panelL(c);
+  if (c.isL) { panelL(c); slide(); return; }
   const n = c.node, steps = c.course ? STEP_C : STEP_A;
   let h = `<span class="kind">${esc(n.kind)}${c.course ? '' : ' · atlas'}</span><h2>${esc(n.code)}</h2>${n.ur ? `<div class="ur" lang="ur" dir="rtl">${esc(n.ur)}</div>` : ''}`;
   const link = (t, code) => code && byCode.has(code) ? `<a data-goto="${esc(code)}">${esc(t)}</a>` : `<span>${esc(t)}</span>`;
@@ -396,7 +399,7 @@ function panel(c) {
   h += `<div class="links">${n.wm ? `<a class="btn" href="${esc(n.wm)}" target="wm">Open in Work Map</a>` : ''}${n.rm ? `<a class="btn" href="${esc(n.rm)}" target="rm">Read in Reading Mode</a>` : ''}</div>`;
   h += actions(c);
   h += `<p class="keys">← → next in this Bab · [ ] along the chain · N next match · Esc to let go</p>`;
-  el.innerHTML = h;
+  el.innerHTML = h; slide();
 }
 
 function chainHTML(v) { return `<div class="chain">${['Atlas Fasl', 'Hub sabaq', 'Class lesson'].map((t, i) => `<div class="st"><span class="ck">${t}</span><span class="cv">${v[i]}</span></div>`).join('<i class="arr" aria-hidden="true">↓</i>')}</div>`; }
@@ -418,7 +421,7 @@ function panelL(c) {
   const link = (t, code) => byCode.has(code) ? `<a data-goto="${esc(code)}">${esc(t)}</a>` : `<span>${esc(t)}</span>`;
   let h = `<span class="kind">Class lesson</span><h2>${esc(n.code)}</h2>${n.ur ? `<div class="ur" lang="ur" dir="rtl">${esc(n.ur)}</div>` : ''}`;
   h += chainHTML([fs.length ? fs.map(f => link(f.node.code, f.node.code)).join('<br>') : '<span class="none">none listed</span>', link(s.short || '', s.code || ''), `<b>${esc(n.short)}</b>`]);
-  h += `<div class="card"><h3>${n.taught ? 'Taught in class' : 'Planned, not taught yet'}</h3><span class="muted">The building grows one slab for each form made.</span><div class="forms">${FORMS_L.map(([, t]) => `<span class="form${forms.has(t) ? ' on' : ''}">${forms.has(t) ? '✓ ' : ''}${t}</span>`).join('')}</div>${n.rm ? `<a class="small" href="${esc(n.rm)}?t=files" target="rm">Open the files in Reading Mode</a>` : ''}</div>`;
+  h += `<div class="card"><h3>${n.taught ? 'Taught in class' : 'Planned, not taught yet'}</h3><span class="muted">Each roof tile is one form and turns gold when it is made; the whole classroom turns gold once the lesson is taught.</span><div class="forms">${FORMS_L.map(([, t]) => `<span class="form${forms.has(t) ? ' on' : ''}">${forms.has(t) ? '✓ ' : ''}${t}</span>`).join('')}</div>${n.rm ? `<a class="small" href="${esc(n.rm)}?t=files" target="rm">Open the files in Reading Mode</a>` : ''}</div>`;
   if (s.q) h += `<div class="card"><h3>Waiting on you</h3><div class="r"><span>Open questions on ${esc(s.short)}</span><b class="red">${s.q}</b></div></div>`;
   h += `<div class="links">${n.wm ? `<a class="btn" href="${esc(n.wm)}" target="wm">Open in Work Map</a>` : ''}${n.rm ? `<a class="btn" href="${esc(n.rm)}" target="rm">Read in Reading Mode</a>` : ''}</div>${actions(c)}<p class="keys">← → next in this Bab · [ ] along the chain · Esc to let go</p>`;
   $('#side').innerHTML = h;
@@ -437,8 +440,14 @@ let byNodeTmp = new Map();
 
 /* ---------- tooltip ---------- */
 const tip = $('#tip');
+let tipWait = null;
 function showTip(c, x, y) {
+  clearTimeout(tipWait);
   if (!c) { tip.hidden = true; return; }
+  if (tip.hidden) { tipWait = setTimeout(() => fillTip(c, x, y), 80); return; }   // a short wait before the first card; moving between towers swaps it at once
+  fillTip(c, x, y);
+}
+function fillTip(c, x, y) {
   const n = c.node, f = (n.has || c.isL) ? formsOf(n).map(z => z[1]) : [];
   tip.innerHTML = `<div class="th"><b>${esc(n.code)}</b><span>${esc(stepOf(c))}</span></div>${n.ur ? `<div class="tu" dir="rtl" lang="ur">${esc(n.ur)}</div>` : ''}${f.length ? `<div class="tf">${f.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}${c.props.q ? `<div class="tq">${n.q || (n.sab && n.sab.q)} open questions</div>` : ''}${c.fresh ? `<div class="tn">Changed ${esc(rel(c.fresh.when))}</div>` : ''}`;
   tip.hidden = false; const r = svg.parentNode.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
@@ -468,13 +477,13 @@ $('#mini').addEventListener('click', e => { const r = e.target.getBoundingClient
 /* ---------- URL: focus, selection and filters can be bookmarked ---------- */
 function hashSet() {
   const q = new URLSearchParams(); if (focus) q.set('d', focus.D.id); if (focus && focus.B) q.set('b', focus.B.node.short); if (pinned) q.set('p', pinned.node.code);
-  if (chips.size) q.set('f', [...chips].join(',')); if (preset !== 'all') q.set('v', preset); if (rot) q.set('r', rot);
+  if (chips.size) q.set('f', [...chips].join(',')); if (preset !== 'all') q.set('v', preset); if (rot) q.set('r', rot); if (tableOn) q.set('tab', '1');
   const h = q.toString(), key = (focus ? focus.D.id : '') + '|' + (focus && focus.B ? focus.B.node.short : ''), url = h ? '#' + h : location.pathname + location.search;
   if (booted && key !== lastKey) history.pushState(null, '', url); else history.replaceState(null, '', url); lastKey = key;
 }
 addEventListener('popstate', () => {
   const q = new URLSearchParams(location.hash.slice(1)), D = districts.find(d => d.id === q.get('d')), B = D && D.blocks.find(b => b.node.short === q.get('b')), p = byCode.get(q.get('p') || '');
-  lastKey = (D ? D.id : '') + '|' + (B ? B.node.short : ''); pinned = null; pinPaint();
+  lastKey = (D ? D.id : '') + '|' + (B ? B.node.short : ''); pinned = null; pinPaint(); navDir = 'back';
   if (B) flyToBlock(B); else if (D) flyTo(D); else fitAll(true); if (p) select(p, false);
 });
 function hashRead() {
@@ -485,7 +494,18 @@ function hashRead() {
 
 /* ---------- pointer and keys ---------- */
 let drag = null, lastClick = 0;
-const cellAt = e => { const el = document.elementFromPoint(e.clientX, e.clientY); const t = el && el.closest && el.closest('#towers .c'); return t ? cells[+t.dataset.i] : null; };
+/* which plot is under the pointer, worked out from the drawing's own geometry: each plot answers over its whole square and up its
+   tower's silhouette, and where two overlap the one nearer the viewer wins. Zoomed far out, the nearest plot within 8px answers. */
+function cellAt(e) {
+  const r = svg.getBoundingClientRect(), x = (e.clientX - r.left - cam.x) / cam.k, y = (e.clientY - r.top - cam.y) / cam.k;
+  const el = document.elementFromPoint(e.clientX, e.clientY); if (el && el.closest && el.closest('.sign')) return null;
+  let best = null;
+  for (const c of cells) { const h = c.hull; if (!h || x < h.x0 || x > h.x1 || y < h.y0 || y > h.y1) continue;
+    if (inside(h.p, x, y) && (!best || c.rx + c.ry > best.rx + best.ry)) best = c; }
+  if (!best && cam.k < 1.2) { let d = 8 / cam.k; for (const c of cells) { if (!c.top) continue; const dd = Math.hypot(c.top[0] - x, c.top[1] - y); if (dd < d) { d = dd; best = c; } } }
+  return best;
+}
+function inside(p, x, y) { let o = false; for (let i = 0, j = p.length - 1; i < p.length; j = i++) { const a = p[i], b = p[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) o = !o; } return o; }
 /* gestures: one pointer drags (mouse, pen, one finger). Two or three fingers on a touch screen move the map
    by their centre and zoom by their spread (pinch). On a trackpad: two-finger swipe moves, pinch zooms;
    a mouse wheel zooms. Safari's own pinch events are handled too. */
@@ -513,7 +533,7 @@ const endTouch = e => { if (!touches.delete(e.pointerId)) return false;
     return true; }   // a lifted finger never counts as a click while a gesture is on
   return false; };
 svg.addEventListener('pointercancel', e => { endTouch(e); drag = null; svg.classList.remove('grabbing'); });
-svg.addEventListener('pointerleave', () => { tip.hidden = true; hover(null); });
+svg.addEventListener('pointerleave', () => { showTip(null); hover(null); });
 svg.addEventListener('pointerup', e => {
   if (endTouch(e) || multi) { drag = null; return; }
   svg.classList.remove('grabbing'); const d = drag; drag = null; if (d && d.moved) return;
@@ -558,7 +578,7 @@ $('#side').addEventListener('click', e => {
 $('#side').addEventListener('mouseover', e => { const r = e.target.closest('[data-cell]'); hover(r ? cells[+r.dataset.cell] : null); });
 $('#side').addEventListener('mouseleave', () => hover(null));
 $('#showm').addEventListener('click', showMatches);
-$('#crumb').addEventListener('click', e => { const a = e.target.closest('[data-up]'); if (!a) return; unpin(); if (a.dataset.up === 'd' && focus) flyTo(focus.D); else fitAll(true); });
+$('#crumb').addEventListener('click', e => { const a = e.target.closest('[data-up]'); if (!a) return; unpin(); navDir = 'back'; if (a.dataset.up === 'd' && focus) flyTo(focus.D); else fitAll(true); });
 $('#chips').addEventListener('click', e => { const b = e.target.closest('[data-chip]'); if (!b) return; const k = b.dataset.chip; if (chips.has(k)) chips.delete(k); else chips.add(k); paintFilter(); hashSet(); });
 $('#preset').addEventListener('click', e => { const b = e.target.closest('[data-preset]'); if (!b) return; preset = b.dataset.preset; paintFilter(); hashSet(); });
 $('#clear').addEventListener('click', () => { chips.clear(); preset = 'all'; query = ''; qi.value = ''; searchList(); paintFilter(); hashSet(); });
@@ -580,12 +600,12 @@ $('#help').onclick = () => { $('#helpbox').hidden = !$('#helpbox').hidden; };
 $('#helpbox').addEventListener('click', e => { if (e.target.closest('[data-close]')) $('#helpbox').hidden = true; });
 function zoomBy(f) { const r = svg.getBoundingClientRect(), mx = r.width / 2, my = r.height / 2, k = Math.max(0.15, Math.min(16, cam.k * f)); cam.x = mx - (mx - cam.x) * (k / cam.k); cam.y = my - (my - cam.y) * (k / cam.k); cam.k = k; apply(); }
 function turnBy(d) { rot = (rot + d) % 4; const f = focus, p = pinned; draw(); if (f && f.B) flyToBlock(f.B, false); else if (f) flyTo(f.D, false); else fitAll(false); if (p) { pinned = p; pinPaint(); } hashSet(); }
-function stepAlong(d) { if (!pinned) return; const list = pinned.B.cells, i = list.indexOf(pinned), n = list[i + d]; if (n) select(n, false); }
+function stepAlong(d) { if (!pinned) return; const list = pinned.B.cells, i = list.indexOf(pinned), n = list[i + d]; if (n) { navDir = 'none'; select(n, false); } }
 function stepChain(d) { if (!pinned) return; const ch = chainOf(pinned); if (ch.length) select(ch[d > 0 ? 0 : ch.length - 1], true); }
 addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('input,select,textarea')) return;
   if (e.key === '/') { e.preventDefault(); qi.focus(); return; }
-  if (e.key === 'Escape') { if (!$('#helpbox').hidden) { $('#helpbox').hidden = true; return; } if (pinned) unpin(); else if (focus && focus.B) flyTo(focus.D); else if (focus) fitAll(true); return; }
+  if (e.key === 'Escape') { if (!$('#helpbox').hidden) { $('#helpbox').hidden = true; return; } navDir = 'back'; if (pinned) unpin(); else if (focus && focus.B) flyTo(focus.D); else if (focus) fitAll(true); return; }
   if (e.key === 'ArrowRight') { e.preventDefault(); stepAlong(1); } if (e.key === 'ArrowLeft') { e.preventDefault(); stepAlong(-1); }
   if (e.key === ']') stepChain(1); if (e.key === '[') stepChain(-1);
   if (e.key === 'n') stepMatch(1); if (e.key === 'N') stepMatch(-1);
@@ -620,12 +640,37 @@ function freshen(w) {
   cells.forEach(c => { c.props.changed = !!c.fresh; });
 }
 
+/* ---------- table view: every course and atlas side by side, one small square per lesson ---------- */
+let tableOn = false;
+function tableView() {
+  const el = $('#tablev'); if (!tableOn) { el.hidden = true; return; }
+  const sq = c => { const col = c.isL ? (c.node.taught ? PAL.L[0] : PAL.Lp[0]) : SOLID[c.node.kind === 'Sabaq' ? Math.min(3, stageOf(c.node.has)) : c.lvl];
+    return `<i class="gq${c.isL ? ' gl' : ''}${c.props.q ? ' gqq' : ''}" style="background:${col}" data-cell="${c.i}" title="${esc(c.node.code)}: ${esc(c.isL ? (c.node.taught ? 'class lesson, taught' : 'class lesson, planned') : stepOf(c))}"></i>`; };
+  const num = v => `<td class="n">${v || '<span class="z">0</span>'}</td>`;
+  const crs = districts.filter(D => D.node.kind !== 'Atlas').map(D => { const cs = D.blocks.flatMap(b => b.cells), ss = cs.filter(c => !c.isL), Ls = cs.filter(c => c.isL), f = facts(D);
+    const st = c => c.node.kind === 'Sabaq' ? stageOf(c.node.has) : c.lvl;
+    return `<tr><th><a data-fly="${districts.indexOf(D)}">${esc(D.node.short)}</a>${D.fresh.length ? ' <i class="dot" title="changed in the last 24 hours"></i>' : ''}</th>${num(ss.length)}<td class="n">${f.babs > 1 ? `${f.withL} of ${f.babs}` : '<span class="z">·</span>'}</td>${num(ss.filter(c => st(c) >= 1).length)}${num(ss.filter(c => st(c) >= 2).length)}${num(ss.filter(c => st(c) >= 3).length)}${num(Ls.filter(c => c.node.taught).length + ss.filter(c => c.lvl >= 4 && !c.isL && c.node.kind !== 'Sabaq').length)}${num(ss.reduce((a, c) => a + qOf(c), 0))}<td class="gp">${cs.map(sq).join('')}</td></tr>`; }).join('');
+  const ats = districts.filter(D => D.node.kind === 'Atlas').map(D => { const lv = D.node.levels, cnt = k => lv.filter(l => l >= k).length, run = D.blocks.flatMap(b => b.cells).filter(c => c.node.running).length;
+    const babsq = D.blocks.map(b => { const l = b.node.levels || [], w = l.filter(x => x >= 1).length, t = l.length ? w / l.length : 0; return `<i class="gq gb" data-flyb="${blocks.indexOf(b)}" style="background:color-mix(in srgb, ${SOLID[1]} ${Math.round(t * 100)}%, ${PAL.track})" title="${esc(b.node.short)}: ${w} of ${l.length} Fasls written"></i>`; }).join('');
+    return `<tr><th><a data-fly="${districts.indexOf(D)}">${esc(D.node.short)}</a>${D.fresh.length ? ' <i class="dot"></i>' : ''}</th>${num(lv.length)}${num(cnt(1))}${num(cnt(2))}${num(cnt(3))}${num(cnt(4))}${num(run)}<td class="gp">${babsq}</td></tr>`; }).join('');
+  el.innerHTML = `<div class="tw"><h2>Courses</h2><p class="muted">One square per lesson, coloured by how far it went; gold squares are class lessons. A dark corner marks open questions. Click a name to fly there, a square to open that lesson.</p>
+    <table><thead><tr><th>Course</th><th class="n">Listed</th><th class="n">Babs with lessons</th><th class="n">Written</th><th class="n">Refined</th><th class="n">Deck</th><th class="n">Taught</th><th class="n">Open questions</th><th>Lessons</th></tr></thead><tbody>${crs}</tbody></table>
+    <h2>Atlases</h2><p class="muted">One square per Bab, darker when more of its Fasls are written.</p>
+    <table><thead><tr><th>Atlas</th><th class="n">Fasls</th><th class="n">Written</th><th class="n">In a sabaq</th><th class="n">Refined</th><th class="n">Taught</th><th class="n">Being written</th><th>Babs</th></tr></thead><tbody>${ats}</tbody></table></div>`;
+  el.hidden = false;
+}
+function setView(v) { tableOn = v === 'table'; document.querySelectorAll('#views [data-view]').forEach(a => { const on = a.dataset.view === v; a.classList.toggle('on', on); a.setAttribute('aria-pressed', on); }); tableView(); hashSet(); }
+$('#views').addEventListener('click', e => { const a = e.target.closest('[data-view]'); if (!a) return; e.preventDefault(); setView(a.dataset.view); });
+$('#tablev').addEventListener('click', e => { const t = e.target.closest('[data-cell],[data-fly],[data-flyb]'); if (!t) return; setView('city');
+  if (t.dataset.cell) select(cells[+t.dataset.cell], true); else if (t.dataset.fly) flyTo(districts[+t.dataset.fly]); else flyToBlock(blocks[+t.dataset.flyb]); });
+
 window.OBS.start((m, w) => {
   M = m; W0 = w; const q = hashRead();
   layout(); index(); freshen(w); draw();
   const D = districts.find(d => d.id === q.get('d')), B = D && D.blocks.find(b => b.node.short === q.get('b')), p = byCode.get(q.get('p') || '');
   if (B) flyToBlock(B, false); else if (D) flyTo(D, false); else fitAll(false);
   if (p) select(p, false); else panel(null);
+  if (q.get('tab')) setView('table');
   booted = true;
 });
 })();
