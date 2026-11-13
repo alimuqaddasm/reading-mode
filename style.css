@@ -484,3 +484,5 @@ details.dd .menu a i.s{background:var(--accent-w);color:var(--accent)} details.d
 @media (max-width:640px){.st i{display:none}.ynav .yp span,.ynav .yn span{display:none}}
 .top1 .tools{margin-inline:0;margin-right:auto}
 .top2 .zforms~details.disp.dd .menu,.top2 details.disp.dd .menu{left:0;right:auto}
+
+details.dd .menu .mbab{position:sticky;top:-6px;background:var(--paper);font-family:var(--ui);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:8px 10px 4px;direction:ltr;text-align:right;border-bottom:1px solid var(--rule-2);z-index:1}
