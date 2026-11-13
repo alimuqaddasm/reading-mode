@@ -158,8 +158,8 @@ function topBar(o) {
   const wm = o.wm || WM;
   let h = `<div class="top1"><button type="button" class="btn tocbtn" id="bToc">${ICON.menu}Contents</button>
     <a class="brand" href="#"><span class="mk">${ICON.book}</span>Reading Mode</a><nav class="crumb" aria-label="Where you are">${crumbs}</nav>
-    ${o.chain || ''}<span class="tools"><span class="save" id="save"></span>
-    <a class="btn" href="${esc(wm)}">${ICON.wm}Work Map</a>
+    ${o.step || ''}<span class="tools"><span class="save" id="save"></span>
+    <a class="btn" href="${esc(wm)}" target="wm" title="Open this place in the Work Map">${ICON.wm}Work Map</a>
     <button type="button" class="btn icon" id="bTheme" aria-label="Dark or light">${ICON.moon}</button>
     <button type="button" class="btn" id="bForget" title="Remove your key from this browser">Forget key</button></span></div>`;
   if (o.second) h += `<div class="top2">${o.second}</div>`;
@@ -407,14 +407,14 @@ function lessonView(L) {
     crumbs = [{ t: L.atlas.ur, h: '#' + L.atlas.id }, { t: 'B' + L.bab, h: `#${L.atlas.id}/${L.bab}`, ui: 1 }, { t: d.label || d.fasl_id, ui: 0 }];
     wm = `${WM}#atlas?a=${L.atlas.id}&b=${L.bab}`;
   }
-  topBar({ crumbs, chain, second, rail: 1, wm, lessonKey: L.key });
+  topBar({ crumbs, step: stepHTML(neighbours(L)), second, rail: 1, wm, lessonKey: L.key });
   // rail
   const secs = []; let cur = null;
   items.forEach(it => { if (it.t === 'h2' || (it.t === 'h3' && !isS)) { cur = { it, sch: new Set() }; secs.push(cur); } else if (cur && it.sch) it.sch.forEach(x => cur.sch.add(x)); });
   let n2 = 0;
   const rail = `<span class="rh">${esc(d.code || d.label || '')} · ${secs.length} sections</span>` + secs.map(s => { const num = s.it.t === 'h2' && /^[۰-۹]+۔/.test(s.it.h) ? '' : '';
       return `<a href="${hash(seg, { b: s.it.id })}" data-b="${s.it.id}" class="${s.it.t}"><span class="rn">${num}</span><span style="flex:1">${s.it.h.replace(/<[^>]+>/g, '')}</span><span class="dots">${[...s.sch].map(c => `<i style="background:var(--${c})"></i>`).join('')}</span></a>`; }).join('')
-    + `<div class="sum">${nn ? `<button type="button" data-list="note"><span>Editor notes</span><b style="color:var(--note)">${nn}</b></button>` : ''}${nq ? `<button type="button" data-list="q"><span>Open questions</span><b style="color:var(--q)">${nq}</b></button>` : ''}${ntc ? `<button type="button" data-list="tc"><span>Teacher-only parts</span><b style="color:var(--tc)">${ntc}</b></button>` : ''}<button type="button" data-list="mine"><span>My notes here</span><b style="color:var(--accent)">${Object.values(S.notes.notes).filter(x => x.lesson === L.key).length}</b></button></div>`;
+    + lessonsRail(L) + `<div class="sum">${nn ? `<button type="button" data-list="note"><span>Editor notes</span><b style="color:var(--note)">${nn}</b></button>` : ''}${nq ? `<button type="button" data-list="q"><span>Open questions</span><b style="color:var(--q)">${nq}</b></button>` : ''}${ntc ? `<button type="button" data-list="tc"><span>Teacher-only parts</span><b style="color:var(--tc)">${ntc}</b></button>` : ''}<button type="button" data-list="mine"><span>My notes here</span><b style="color:var(--accent)">${Object.values(S.notes.notes).filter(x => x.lesson === L.key).length}</b></button></div>`;
   // head
   const tot = {}; items.forEach(it => (it.s || []).forEach(s => { const k = s.c ? '+' : (s.sch || []).length === 1 ? s.sch[0] : (s.sch || []).length ? '*' : '+'; tot[k] = (tot[k] || 0) + (s.h || '').length; }));
   const all = Object.values(tot).reduce((a, b) => a + b, 0) || 1;
@@ -423,7 +423,7 @@ function lessonView(L) {
   let h = `<div class="desk"><nav class="rail" aria-label="Sections">${rail}</nav><main class="read"><article class="sheet">
     <header class="lhead"><span class="k">${esc(kicker)}</span><h1>${d.title || ''}</h1>${share ? `<span class="share" role="img" aria-label="Who speaks how much">${share}</span>` : ''}
     ${d.ref ? `<span class="ref">${esc(d.ref)}</span>` : ''}${(d.sources || []).length ? `<span class="src">sources ${esc(d.sources.join(' '))}</span>` : ''}
-    ${d.md ? `<span class="src"><a href="${esc(d.md)}">the lesson file on GitHub</a></span>` : ''}</header>`;
+    ${d.md ? `<span class="src"><a href="${esc(d.md)}">the lesson file on GitHub</a></span>` : ''}${connHTML(L, wm)}</header>`;
   if (L.tab === 'files') h += filesHTML(d);
   else if (L.tab === 'changes') h += changesHTML(d);
   else if (L.tab === 'questions') h += `<div class="files">${items.filter(i => i.t === 'q').map(qCard).join('')}</div>`;
@@ -471,6 +471,56 @@ function warmRows() {
   const step = dl => { if (g !== routeGen) return; do { if (i >= rows.length) return; rows[i++].getBoundingClientRect(); } while (dl.timeRemaining() > 12); ric(step); };
   ric(step);
 }
+/* ---------- getting around: previous and next lesson, this Bab's lessons, connected material ---------- */
+const shortCode = c => String(c || '').split(' ').slice(-1)[0];
+function stepHTML(nx) {
+  if (!nx.prev && !nx.next) return '';
+  const b = (x, cls, ic, key) => x ? `<a class="sb ${cls}" href="${x.h}" title="${esc(x.code)} · ${esc(String(x.t || '').replace(/<[^>]+>/g, ''))} (${key})">${cls === 'p' ? ic : ''}<span>${esc(shortCode(x.code))}</span>${cls === 'n' ? ic : ''}</a>` : `<span class="sb off ${cls}" aria-hidden="true"></span>`;
+  return `<nav class="step" aria-label="Previous and next lesson">${b(nx.prev, 'p', ICON.prev, 'Shift and right arrow')}${b(nx.next, 'n', ICON.next, 'Shift and left arrow')}</nav>`;
+}
+function lessonsRail(L) {
+  const d = L.d, open = LS.get('railLessons', true); let items = '', head = '';
+  if (L.course) {
+    const b = L.course.babs.find(x => x.n === L.bab); if (!b) return '';
+    const cur = parse().seg[2];
+    head = L.course.id === 'mrf' ? `${b.sabaq.length} lessons` : `B${b.n} · ${b.sabaq.length} sabaq`;
+    items = b.sabaq.map(x => { const on = d.kind === 'sabaq' && (x.slug === d.slug || x.n === d.n);
+      return `<a class="lsn${on ? ' on' : ''}" href="#${L.course.id}/${b.n}/${x.slug}"${on ? ' aria-current="page"' : ''}><b>${esc(x.label)}</b><span class="lt">${esc(x.title)}</span>${x.L ? `<i class="${x.Ls === 'planned' ? 'lp' : 'l'}">L${x.L}</i>` : ''}</a>`; }).join('');
+    if (b.lessons && b.lessons.length) items += `<span class="lsh">Class lesson texts</span>` + b.lessons.map(l => { const on = d.kind === 'class' && l.slug === cur;
+      return `<a class="lsn${on ? ' on' : ''}" href="#${L.course.id}/${b.n}/${l.slug}"${on ? ' aria-current="page"' : ''}><b>L${l.L}</b><span class="lt">${esc(l.title)}</span>${l.variant ? `<i class="v">${esc(l.variant)}</i>` : ''}</a>`; }).join('');
+  } else {
+    const b = L.atlas.babs.find(x => x.n === L.bab); if (!b) return '';
+    const parts = b.fasls.flatMap(f => f.parts.map((pt, i) => ({ f, pt, i })));
+    head = `B${b.n} · ${parts.length} atlas lessons`;
+    items = parts.map(({ f, pt, i }) => { const on = pt.id === parse().seg[2];
+      return `<a class="lsn${on ? ' on' : ''}" href="#${L.atlas.id}/${b.n}/${pt.id}"${on ? ' aria-current="page"' : ''}><b>F${f.id.split('.')[1]}${f.parts.length > 1 ? '.' + (i + 1) : ''}</b><span class="lt">${esc(pt.title || f.ur)}</span></a>`; }).join('');
+  }
+  return `<details class="rl"${open ? ' open' : ''}><summary>${esc(head)}</summary>${items}</details>`;
+}
+document.addEventListener('toggle', e => { if (e.target.matches && e.target.matches('.rail details.rl')) LS.set('railLessons', e.target.open); }, true);
+function connHTML(L, wm) {
+  const d = L.d, rows = [], chip = (h, t, cls, title) => h ? `<a class="chip ${cls}" href="${h}"${title ? ` title="${esc(title)}"` : ''}>${esc(t)}</a>` : `<span class="chip ${cls} off"${title ? ` title="${esc(title)}"` : ''}>${esc(t)}</span>`;
+  const row = (k, v) => { if (v) rows.push(`<span class="ck">${k}</span><span class="cv">${v}</span>`); };
+  if (d.kind === 'sabaq') {
+    const at = S.index.atlases.find(a => a.id === L.course.atlas);
+    const fas = [...new Set((d.sources || []).filter(x => /^U\d+\.\d+(-\d+)?$/.test(x)).map(x => x.split('-')[0]))];
+    row('Built from', fas.map(u => { const [b, f] = u.slice(1).split('.'); const ab = at && at.babs.find(x => x.n === +b); const fl = ab && ab.fasls.find(x => x.id === u);
+      return chip(fl && fl.parts.length ? `#${at.id}/${b}/${fl.parts[0].id}` : '', `${at ? at.name + ' ' : ''}B${b} F${f}`, 'f', fl ? fl.ur + (fl.parts.length ? '' : ' (not built as an atlas lesson yet)') : ''); }).join(''));
+    if (d.L) row('Taught as', chip(lesLink(L, d.L), `L${d.L} ${d.Ls === 'planned' ? 'planned' : 'taught'}`, d.Ls === 'planned' ? 'lp' : 'l', lesLink(L, d.L) ? 'Read the class lesson text' : 'No class lesson text yet'));
+  } else if (d.kind === 'class') {
+    const b = L.course.babs.find(x => x.n === L.bab); const src = b && b.sabaq.find(x => x.L === d.L);
+    row('Written from', src ? chip(`#${L.course.id}/${L.bab}/${src.slug}`, `${L.course.code} B${L.bab} ${src.label}`, 's', src.title) : '');
+    const vs = b ? b.lessons.filter(l => l.L === d.L && l.slug !== parse().seg[2]) : [];
+    row('Other versions', vs.map(l => chip(`#${L.course.id}/${L.bab}/${l.slug}`, l.variant || l.where.split('/')[0], 'lp', l.where)).join(''));
+  } else if (d.kind === 'fasl') {
+    row('Used by', (d.used || []).map(u => chip(`#${u.course}/${u.bab}/${u.n}`, u.code, 's')).join(''));
+    const b = L.atlas.babs.find(x => x.n === L.bab); const f = b && b.fasls.find(x => x.id === d.fasl_id);
+    if (f && f.parts.length > 1) row('Parts', f.parts.map((pt, i) => chip(pt.id === parse().seg[2] ? '' : `#${L.atlas.id}/${L.bab}/${pt.id}`, `${i + 1}. ${pt.label}`, 'f', pt.title)).join(''));
+    row('Atlas', chip(`#${L.atlas.id}/${L.bab}/atlas`, `B${L.bab} atlas text, every Nukta`, 'f') + chip(`#${L.atlas.id}/${L.bab}`, `All Fasls of B${L.bab}`, 'f'));
+  }
+  row('Work Map', `<a class="chip w" href="${esc(wm)}" target="wm">Open here in the Work Map</a>`);
+  return rows.length ? `<nav class="conn" aria-label="Connected material">${rows.join('')}</nav>` : '';
+}
 function lesLink(L, n) {
   const b = L.course.babs.find(x => x.n === L.bab); const ls = b ? b.lessons.filter(l => l.L === n) : [];
   const l = ls.find(x => !x.variant && !/-a$/.test(x.slug)) || ls[0];
@@ -481,6 +531,9 @@ function neighbours(L) {
   if (d.kind === 'sabaq') { const b = L.course.babs.find(x => x.n === L.bab); const i = b.sabaq.findIndex(s => s.slug === d.slug || (!d.slug && s.n === d.n));
     const mk = s => s && { h: `#${L.course.id}/${L.bab}/${s.slug}`, code: `${L.course.code} ${L.course.id === 'mrf' ? '' : 'B' + L.bab + ' '}${s.label}`, t: s.title };
     o.prev = mk(b.sabaq[i - 1]); o.next = mk(b.sabaq[i + 1]); }
+  if (d.kind === 'class') { const b = L.course.babs.find(x => x.n === L.bab); const ls = b ? b.lessons : []; const i = ls.findIndex(l => l.slug === parse().seg[2]);
+    const mk = l => l && { h: `#${L.course.id}/${L.bab}/${l.slug}`, code: `${L.course.code} B${L.bab} L${l.L}${l.variant ? ' (' + l.variant + ')' : ''}`, t: l.title };
+    o.prev = mk(ls[i - 1]); o.next = mk(ls[i + 1]); }
   if (d.kind === 'fasl') { const b = L.atlas.babs.find(x => x.n === L.bab); const built = b.fasls.filter(f => f.parts.length); const i = built.findIndex(f => f.id === d.fasl_id);
     const parts = b.fasls.flatMap(f => f.parts); const j = parts.findIndex(p => p.id === d.id || p.id === parse().seg[2]);
     const mk = p => p && { h: `#${L.atlas.id}/${L.bab}/${p.id}`, code: p.label, t: p.title };
@@ -849,6 +902,7 @@ addEventListener('keydown', e => {
   if (e.key === 'Escape') { const o = $$('.over'); if ($('#drawer') || o.length) { closeDrawer(); o.forEach(x => x.parentNode.removeChild(x)); return; } }
   if (e.key === ' ' && AU.map && AU.key && !e.target.closest('input,textarea,select,button,[contenteditable]')) { e.preventDefault(); if (AU.el.paused) AU.el.play().catch(() => {}); else AU.el.pause(); return; }
   if (e.target.closest('input,textarea,select,[contenteditable]') || e.ctrlKey || e.metaKey || e.altKey || !S.cur || !$('.desk')) return;
+  if (e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { const a = $(e.key === 'ArrowLeft' ? '.step .sb.n[href]' : '.step .sb.p[href]'); if (a) { e.preventDefault(); location.hash = a.getAttribute('href'); } return; }
   if (e.key === 'ArrowLeft') { e.preventDefault(); observe.step && observe.step(1); }
   if (e.key === 'ArrowRight') { e.preventDefault(); observe.step && observe.step(-1); }
   if (e.key === 't' || e.key === 'T') openDrawer();
@@ -893,5 +947,6 @@ async function myNotes(live) {
     <div class="list">${ms.map(([, m]) => `<a class="li" href="${link(m)}"><span class="n">${esc(m.code || '')}</span><span class="t ui" style="font-size:13px;direction:ltr;text-align:right">${esc(m.block)}${m.move ? ' → ' + esc(m.move) : ''}</span><span class="meta">${[m.verdict, m.key && 'key', m.bridge && 'bridge', m.move != null && 'move'].filter(Boolean).map(t => `<span class="pill off">${esc(TAGS[t] || t)}</span>`).join('')}</span></a>`).join('') || '<p class="ui muted" style="padding:16px 22px">Nothing marked yet.</p>'}</div></div>`;
 }
 
+try { window.name = 'rm'; } catch (e) {} // the Work Map opens lessons in this same tab
 if (getKey()) load(); else connect();
 })();
