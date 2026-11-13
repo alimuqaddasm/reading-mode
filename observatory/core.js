@@ -44,7 +44,11 @@ const stageOf = has => { const s = new Set(has || []); if (s.has('main') || s.ha
 const fracs = levels => { const n = levels.length || 1; return [0, 1, 2, 3, 4].map(k => levels.filter(l => l >= k).length / n); };
 const counts = levels => [0, 1, 2, 3, 4].map(k => levels.filter(l => l >= k).length);
 
-function model(w) {
+/* Martaba: each atlas Fasl's tier, the lowest step it can be taught at (M1 Fitrat, M2 Nass, M3 Usul-e Aqida, M4 Istilah,
+   M5 Bahth-e Dakhili). Counts follow one tier at a time; the courses are on M1, so a Fasl a course already uses counts at M1 too. */
+const TIERS = [['M1', 'Fitrat'], ['M2', 'Nass'], ['M3', 'Usul-e Aqida'], ['M4', 'Istilah'], ['M5', 'Bahth-e Dakhili']];
+function model(w, tier) {
+  tier = tier || 'M1';
   // how far each atlas Fasl travelled: 1 written as an atlas lesson, 2 used in a sabaq, 3 that sabaq refined or decked, 4 taught
   const use = {};
   for (const c of w.courses) for (const b of c.babs) for (const H of b.hub) {
@@ -52,17 +56,19 @@ function model(w) {
     for (const u of H.fasls || []) { const k = c.atlas + ':' + u.replace(/^U/, ''); const o = use[k] || (use[k] = { lvl: 0, by: [] }); o.lvl = Math.max(o.lvl, lvl); o.by.push(`${c.code} B${b.n} S${H.h}`); }
   }
   const faslNode = (a, b, f) => {
-    const u = use[a.id + ':' + f.id] || { lvl: 0, by: [] };
-    const written = (f.al || []).some(x => x === 'built' || x === 'written');
-    const lvl = Math.max(written ? 1 : 0, u.lvl);
-    const running = lvl < 4 && (f.al || []).includes('running');   // a unit being written right now
-    return { kind: 'Fasl', key: a.id + ':' + f.id, code: `${a.name} B${b.n} F${f.id.split('.')[1]}`, short: 'F' + f.id.split('.')[1], ur: f.ur, size: 1, levels: [lvl], running, lay: ATLAS_LAY, by: u.by, unit: 'sabaq built from it',
+    const u = use[a.id + ':' + f.id] || { lvl: 0, by: [] }, fm = f.m || 'M1';
+    const st = tier === 'all' ? [...(f.al || []), ...Object.values(f.als || {}).flat()] : tier === 'M1' ? (f.al || []) : ((f.als || {})[tier] || []);
+    const out = !(tier === 'all' || fm === tier || (tier === 'M1' && u.by.length));
+    const written = !out && st.some(x => x === 'built' || x === 'written');
+    const lvl = out ? 0 : Math.max(written ? 1 : 0, tier === 'M1' || tier === 'all' ? u.lvl : 0);   // course work is M1 work
+    const running = !out && lvl < 4 && st.includes('running');   // a unit being written right now
+    return { kind: 'Fasl', key: a.id + ':' + f.id, code: `${a.name} B${b.n} F${f.id.split('.')[1]}`, short: 'F' + f.id.split('.')[1], ur: f.ur, size: 1, levels: [lvl], running, out, m: fm, lay: ATLAS_LAY, by: u.by, unit: 'sabaq built from it',
       wm: `${WM}#atlas?a=${a.id}&b=${b.n}`, rm: `${RM}#${a.id}/${b.n}` };
   };
   const atlases = w.atlases.map(a => {
     const babs = a.babs.map(b => {
       const kids = b.fasls.map(f => faslNode(a, b, f));
-      const levels = kids.map(k => k.levels[0]);
+      const levels = kids.filter(k => !k.out).map(k => k.levels[0]);
       return { kind: 'Bab', code: `${a.name} B${b.n}`, short: 'B' + b.n, ur: b.ur, size: Math.max(1, kids.length), levels, empty: !kids.length, lay: ATLAS_LAY, kids,
         wm: `${WM}#atlas?a=${a.id}&b=${b.n}`, rm: `${RM}#${a.id}/${b.n}`, unit: 'Fasls' };
     });
@@ -103,7 +109,7 @@ function model(w) {
     b.kids.forEach(f => { f.kids = byF[f.key] || []; });
     b.drops = [...new Set(b.kids.flatMap(f => byF[f.key] || []))]; b.dropsHead = 'Sabaq built from this Bab'; }); });
   const all = atlases.flatMap(a => a.levels);
-  return { kind: 'Maarif', code: 'All of Maarif', short: 'Maarif', ur: 'معارف', size: all.length, levels: all, lay: ATLAS_LAY, kids: atlases, courses, drops: courses, unit: 'atlases', wm: WM, rm: RM };
+  return { tier, kind: 'Maarif', code: 'All of Maarif', short: 'Maarif', ur: 'معارف', size: all.length, levels: all, lay: ATLAS_LAY, kids: atlases, courses, drops: courses, unit: 'atlases', wm: WM, rm: RM };
 }
 
 /* ---------- side panel and legend ---------- */
@@ -148,7 +154,8 @@ function start(ready) {
     screen('loading');
     try {
       const [w, ri, marks] = await Promise.all([raw('workmap.json'), raw('reading/index.json').catch(() => null), raw('marks.json', API_NOTES).catch(() => ({}))]);
-      const M = model(w); annotate(M, ri, marks || {});
+      const M = model(w, ready.tier); annotate(M, ri, marks || {});
+      window.OBS.rebuild = tier => { const m2 = model(w, tier); annotate(m2, ri, marks || {}); return m2; };
       const age = (Date.now() - Date.parse(String(w.made || '').replace(' UTC', '').replace(' ', 'T') + 'Z')) / 36e5, mk = $('#made');
       mk.textContent = isNaN(age) ? 'Updated ' + (w.made || '') : `Data from ${age < 1 ? Math.max(1, Math.round(age * 60)) + ' min' : Math.round(age) + ' h'} ago`;
       mk.title = 'Last hub scan: ' + (w.made || 'unknown') + (age > 13 ? '. The scan runs twice a day; this is older than usual.' : ''); mk.classList.toggle('old', age > 13);
@@ -161,5 +168,5 @@ function start(ready) {
   $('#keyform').addEventListener('submit', e => { e.preventDefault(); const v = $('#key').value.trim(); if (!v) return; setKey(v); $('#key').value = ''; load(); });
   if (getKey()) load(); else screen('connect');
 }
-window.OBS = { RM, WM, $, esc, reduced, COL, SOLID, PAL, ATLAS_LAY, COURSE_LAY, fracs, counts, stageOf, model, bar, side, legendHTML, dropSVG, start };
+window.OBS = { TIERS, RM, WM, $, esc, reduced, COL, SOLID, PAL, ATLAS_LAY, COURSE_LAY, fracs, counts, stageOf, model, bar, side, legendHTML, dropSVG, start };
 })();

@@ -5,7 +5,8 @@
    moves anything), turn in quarter steps. Positions never change, so the city stays learnable. */
 (function () {
 'use strict';
-const { $, esc, SOLID, PAL, ATLAS_LAY, reduced, stageOf } = window.OBS;
+const { $, esc, SOLID, PAL, ATLAS_LAY, reduced, stageOf, TIERS } = window.OBS;
+let tier = new URLSearchParams(location.hash.slice(1)).get('m') || 'M1';
 document.documentElement.style.setProperty('--accent', PAL.accent); document.documentElement.style.setProperty('--accent-wash', PAL.accentWash);
 (() => { const st = document.getElementById('stage'); if (st) { st.style.background = PAL.bg; st.dataset.pal = PAL.dark ? 'dark' : 'light'; } })();
 let legendMore = false;
@@ -71,6 +72,7 @@ const FORMS_L = [['tc', 'Teacher Copy'], ['handout', 'Handout'], [['refined', 'p
 const formsOf = n => { const h = new Set(n.has || []); return FORMS_L.filter(([k]) => (Array.isArray(k) ? k : [k]).some(x => h.has(x))); };
 function props(c) {
   const n = c.node, l = c.lvl, atlas = !c.course;
+  if (n.out) return { written: false, sabaq: false, refined: false, taught: false, ready: false, q: false, mentor: false, revising: false, running: false, out: true };
   if (c.isL) { const s = n.sab || {}, f = formsOf(n); return { written: true, sabaq: true, refined: f.some(x => x[1] === 'Refined'), taught: n.taught, ready: !n.taught && f.some(x => x[1] === 'Deck'), q: (s.q || 0) > 0, mentor: !!s.mentor, revising: !!(s.mentor && s.mentor.status === 'revising') }; }
   if (n.kind === 'Sabaq') { const st = stageOf(n.has); return { written: st >= 1, sabaq: true, refined: st >= 2, taught: false, ready: false, q: (n.q || 0) > 0, mentor: !!n.mentor, revising: !!(n.mentor && n.mentor.status === 'revising') }; }
   return { written: l >= 1, sabaq: atlas ? l >= 2 : n.kind === 'Sabaq', refined: atlas ? l >= 3 : l >= 2, taught: l >= 4,
@@ -93,19 +95,19 @@ function outline(x, y, z0, z1, w, col) {   // the tower's silhouette and its fro
   const At = P(x, y, z1), Bt = P(x + w, y, z1), Ct = P(x + w, y + w, z1), Dt = P(x, y + w, z1), Bb = P(x + w, y, z0), Cb = P(x + w, y + w, z0), Db = P(x, y + w, z0), f = p => p[0].toFixed(1) + ',' + p[1].toFixed(1);
   return `<path class="ol" d="M${f(At)}L${f(Bt)}L${f(Bb)}L${f(Cb)}L${f(Db)}L${f(Dt)}Z M${f(Dt)}L${f(Ct)}L${f(Bt)} M${f(Ct)}L${f(Cb)}" fill="none" stroke="${shade(col, .45)}" stroke-opacity=".55" stroke-width=".7" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
 }
-function prism(x, y, z0, h, w, col) {
+function prism(x, y, z0, h, w, col, noTop) {   // noTop: the floor above covers this top face, so it is not drawn
   const z1 = z0 + h, top = [P(x, y, z1), P(x + w, y, z1), P(x + w, y + w, z1), P(x, y + w, z1)];
   const left = [P(x, y + w, z0), P(x + w, y + w, z0), P(x + w, y + w, z1), P(x, y + w, z1)], right = [P(x + w, y, z0), P(x + w, y + w, z0), P(x + w, y + w, z1), P(x + w, y, z1)];
-  return `<polygon points="${pts(left)}" fill="${shade(col, .8)}"/><polygon points="${pts(right)}" fill="${shade(col, .93)}"/><polygon points="${pts(top)}" fill="${shade(col, 1.12)}"/>`;
+  return `<polygon points="${pts(left)}" fill="${shade(col, .8)}"/><polygon points="${pts(right)}" fill="${shade(col, .93)}"/>${noTop ? '' : `<polygon points="${pts(top)}" fill="${shade(col, 1.12)}"/>`}`;
 }
 const STEP_A = ['in the atlas plan', 'Fasl lesson written', 'used in a hub sabaq', 'refined, deck made', 'taught in class'];
 const STEP_C = ['listed in the hub', 'Teacher Copy written', 'refined and proofed', 'class-ready, deck made', 'taught in class'];
-const stepOf = c => c.isL ? `class lesson, ${c.node.taught ? 'taught' : 'planned'}, ${formsOf(c.node).length} forms made` : c.node.kind === 'Sabaq' ? ['listed in the hub', 'Teacher Copy written', 'refined'][Math.min(2, stageOf(c.node.has))] + (c.node.Lnode ? `, became ${c.node.Lnode.short}` : '') : (c.course ? STEP_C : STEP_A)[c.lvl] + (c.node.running ? ', being written now' : '');
+const stepOf = c => c.isL ? `class lesson, ${c.node.taught ? 'taught' : 'planned'}, ${formsOf(c.node).length} forms made` : c.node.kind === 'Sabaq' ? ['listed in the hub', 'Teacher Copy written', 'refined'][Math.min(2, stageOf(c.node.has))] + (c.node.Lnode ? `, became ${c.node.Lnode.short}` : '') : (c.node.out ? `taught at ${c.node.m}, outside ${tier}` : (c.course ? STEP_C : STEP_A)[c.lvl] + (c.node.running ? ', being written now' : ''));
 
 /* ---------- drawing ---------- */
 function draw() {
   byNodeTmp = new Map(cells.map(c => [c.node, c]));
-  let ground = '', towers = [], signs = '', babl = '', roofs = '', marks = '', fresh = ''; shadows = {}; blocks.forEach((B, i) => { B.i = i; });
+  let ground = '', towers = [], signs = '', babl = '', roofs = '', marks = '', fresh = '', flats = {}; shadows = {}; blocks.forEach((B, i) => { B.i = i; });
   for (const R of roads) {
     const a = R.a, b = R.b, y0 = b.y + Math.min(b.h, a.h) / 2;
     ground += `<polygon points="${rectPoly(a.x + a.w + .6, y0 - .7, b.x - a.x - a.w - 1.2, 1.4)}" fill="${PAL.road}"/><polygon points="${rectPoly(a.x + a.w + .6, y0 - .07, b.x - a.x - a.w - 1.2, .14)}" fill="${PAL.halo}"/>`;
@@ -151,8 +153,14 @@ function draw() {
       roofs += `<text class="lroof" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 3).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="${PAL.lroof}" stroke="${PAL.halo}" stroke-width="3" paint-order="stroke">${esc(c.node.short)}</text>`;
       continue; }
     const lv = c.node.kind === 'Sabaq' ? Math.min(2, stageOf(c.node.has)) : c.lvl;
-    if (!lv) { g = `<polygon points="${pts([P(c.rx + o, c.ry + o, 0), P(c.rx + o + w, c.ry + o, 0), P(c.rx + o + w, c.ry + o + w, 0), P(c.rx + o, c.ry + o + w, 0)])}" fill="${c.course ? PAL.flatC : PAL.flatA}"/>`; c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, 0); }
-    else { let z = 0; for (let f = 1; f <= lv; f++) { g += prism(c.rx + o, c.ry + o, z, fh, w, SOLID[f]); z += fh; } c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, z); c.zh = z; }
+    if (!lv && !c.node.running) {   // an empty plot joins its block's single flat shape; it has no element of its own
+      const key = c.node.out ? 'o' : c.course ? 'c' : 'a'; flats[key] = (flats[key] || '') + 'M' + pts([P(c.rx + o, c.ry + o, 0), P(c.rx + o + w, c.ry + o, 0), P(c.rx + o + w, c.ry + o + w, 0), P(c.rx + o, c.ry + o + w, 0)]).replace(/ /g, 'L') + 'Z';
+      c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, 0); c.flat = true; c.zh = 0; c.hull = hullOf(c.rx, c.ry, c.s, 0);
+      if (c.fresh) fresh += `<polygon class="fr" data-i="${c.i}" points="${pts([P(c.rx, c.ry, 0), P(c.rx + c.s, c.ry, 0), P(c.rx + c.s, c.ry + c.s, 0), P(c.rx, c.ry + c.s, 0)])}"/>`;
+      continue; }
+    c.flat = false;
+    if (!lv) { c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, 0); }
+    else { let z = 0; for (let f = 1; f <= lv; f++) { g += prism(c.rx + o, c.ry + o, z, fh, w, SOLID[f], f < lv || c.node.running); z += fh; } c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, z); c.zh = z; }
     if (c.node.running) { const z0 = lv ? (c.top[1] - P(c.rx + c.s / 2, c.ry + c.s / 2, 0)[1]) / -U : 0; g += wire(c.rx + o, c.ry + o, z0, fh, w, SOLID[Math.min(4, lv + 1)]); c.top = P(c.rx + c.s / 2, c.ry + c.s / 2, z0 + fh); }
     if (c.fresh) fresh += `<polygon class="fr" data-i="${c.i}" points="${pts([P(c.rx, c.ry, 0), P(c.rx + c.s, c.ry, 0), P(c.rx + c.s, c.ry + c.s, 0), P(c.rx, c.ry + c.s, 0)])}"/>`;
     const zt = c.node.running ? (c.zh || 0) + fh : (c.zh || 0);
@@ -165,14 +173,19 @@ function draw() {
     if (c.node.mentor) { const col = PAL.mentor[c.node.mentor.status] || '#6b736f'; marks += `<g class="mk flag" data-i="${c.i}" data-x="${c.top[0].toFixed(1)}" data-y="${(c.top[1] - 2).toFixed(1)}"><g transform="translate(-12,0)"><line x1="0" y1="0" x2="0" y2="-12" stroke="#1d211f" stroke-width="1"/><path d="M0,-12 L8,-9 L0,-6Z" fill="${col}"/></g></g>`; }
   }
   const shade_ = Object.values(shadows).map(d => `<path d="${d}"/>`).join('');
-  svg.innerHTML = `<g id="world"><g id="ground">${ground}</g><g id="shadows" fill="#2a2550" fill-opacity=".09">${shade_}</g><g id="fresh">${fresh}</g><g id="paths">${paths}</g><g id="towers">${towers.join('')}</g><g id="beams"></g><g id="babl">${babl}</g><g id="roofs">${roofs}</g><g id="marks">${marks}</g><g id="signs">${signs}</g></g>`;
-  const gb = $('#ground').getBBox(), tb = $('#towers').getBBox(), x0 = Math.min(gb.x, tb.x), y0 = Math.min(gb.y, tb.y);
-  box = { x: x0, y: y0 - 50, w: Math.max(gb.x + gb.width, tb.x + tb.width) - x0, h: Math.max(gb.y + gb.height, tb.y + tb.height) - y0 + 50 };
+  svg.innerHTML = `<g id="world"><g id="ground">${ground}</g><g id="shadows" fill="#2a2550" fill-opacity=".09">${shade_}</g><g id="flats"><path d="${flats.a || ''}" fill="${PAL.flatA}"/><path d="${flats.c || ''}" fill="${PAL.flatC}"/><path d="${flats.o || ''}" fill="${PAL.blkE}" fill-opacity=".7"/></g><g id="flathits"></g><g id="fresh">${fresh}</g><g id="paths">${paths}</g><g id="towers">${towers.join('')}</g><g id="ovl"><path id="selp" fill="none" stroke="#2a2550" stroke-width="2.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path id="hovp" fill="none" stroke="${PAL.accent}" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g><g id="beams"></g><g id="babl">${babl}</g><g id="roofs">${roofs}</g><g id="marks">${marks}</g><g id="signs">${signs}</g></g>`;
+  world = $('#world'); LBL = { sign: [...world.querySelectorAll('.sign')], lroof: [...world.querySelectorAll('.lroof')], blab: [...world.querySelectorAll('.blab')], mk: [...world.querySelectorAll('.mk')] };
+  elOf = new Map(); for (const el of $('#towers').children) elOf.set(+el.dataset.i, el); labelK = 0; totals = null; culled = [];
+  // the drawing's extent, worked out from the layout instead of asking the browser to measure 4,000 shapes
+  const ext = districts.map(D => areaBox(D.x - 1, D.y - 1, D.w + 2, D.h + 2, 0)), tops = cells.map(c => c.top ? c.top[1] : Infinity);
+  const x0 = Math.min(...ext.map(b => b.x)), y0 = Math.min(Math.min(...ext.map(b => b.y)), Math.min(...tops));
+  box = { x: x0, y: y0 - 50, w: Math.max(...ext.map(b => b.x + b.w)) - x0, h: Math.max(...ext.map(b => b.y + b.h)) - y0 + 50 };
   const core = districts.filter(D => !D.bare).map(D => areaBox(D.x - 1, D.y - 1, D.w + 2, D.h + 2, 6 * U));
   if (core.length) { const x0 = Math.min(...core.map(b => b.x)), y0 = Math.min(...core.map(b => b.y)); boxCore = { x: x0, y: y0 - 30, w: Math.max(...core.map(b => b.x + b.w)) - x0, h: Math.max(...core.map(b => b.y + b.h)) - y0 + 30 }; } else boxCore = box;
   declutter.force = true; apply(); paintFilter(); minimap();
 }
-let boxCore = null, shadows = {};
+let boxCore = null, shadows = {}, elOf = new Map(), totals = null;
+const hullD = c => c && c.hull ? 'M' + c.hull.p.map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join('L') + 'Z' : '';
 function shadowPath(x, y, w, z) {   // the light comes from the back left, so each tower lays its footprint toward the front right, longer when taller
   const d = Math.min(2.2, z * 0.55), q = [P(x, y, 0), P(x + w + d, y, 0), P(x + w + d, y + w, 0), P(x, y + w, 0)];
   return 'M' + q.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('L') + 'Z';
@@ -197,33 +210,59 @@ const rel = when => { const t = Date.parse(String(when).replace(' UTC', '').repl
   return m < 60 ? `${Math.round(m)} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
 
 /* ---------- camera ---------- */
+/* the camera: a pan changes one attribute and nothing else. Labels keep a fixed size on screen, so they are re-scaled only
+   when the zoom changes, and while you are still zooming they wait until you pause (they grow and shrink with the map meanwhile). */
+let labelK = 0, labelFocus = null, labelTimer = 0, LBL = { sign: [], lroof: [], blab: [], mk: [] }, world = null;
+let cullTimer = 0, culled = [], sRect = null;
+const stageRect = () => sRect || (sRect = svg.getBoundingClientRect());   // the stage only changes size when the window does
 function apply() {
-  const g = $('#world'); if (!g) return;
-  g.setAttribute('transform', `translate(${cam.x.toFixed(1)},${cam.y.toFixed(1)}) scale(${cam.k.toFixed(4)})`);
-  const inv = 1 / cam.k, k = cam.k;
-  svg.classList.toggle('z1', k > 1.5); svg.classList.toggle('z2', k > 2.2); svg.classList.toggle('z3', k > 3.4);
-  const fix = (sel, s) => g.querySelectorAll(sel).forEach(l => l.setAttribute('transform', `translate(${l.dataset.x},${l.dataset.y}) scale(${s.toFixed(4)})`));
-  fix('.sign', Math.min(1.1, inv * 0.95));
-  if (k > 0.9) fix('.lroof', Math.min(1.3, inv * 1.1));
-  svg.classList.toggle('z0', k > 0.9);
+  if (!world) return;
+  world.setAttribute('transform', `translate(${cam.x.toFixed(1)},${cam.y.toFixed(1)}) scale(${cam.k.toFixed(4)})`);
+  viewport(); clearTimeout(cullTimer); cullTimer = setTimeout(cull, 120);
+  if (cam.k === labelK && focus === labelFocus) return;
+  clearTimeout(labelTimer);
+  if (flight || glide || multi || gest || zooming) labelTimer = setTimeout(fixLabels, 140); else fixLabels();
+}
+/* while the zoom is changing, text steps aside (re-drawing letters at every scale is what makes zooming slow) and comes back the
+   moment you stop; towers, colours and outlines stay on screen the whole time */
+let zooming = false, zoomEnd = 0;
+const quiet = on => { if (svg.classList.contains('zooming') !== on) svg.classList.toggle('zooming', on); };
+const zoomTick = () => { zooming = true; quiet(true); clearTimeout(zoomEnd); zoomEnd = setTimeout(() => { zooming = false; if (!flight && !glide && !multi && !gest) { quiet(false); fixLabels(); } }, 140); };
+/* zoomed in, towers well outside the view are switched off so the browser does not paint them; a wide margin means a pan
+   reaches them only after they are back */
+function cull() {
+  if (!world) return;
+  const r = stageRect(), k = cam.k;
+  if (k < 1.4) { if (culled.length) { culled.forEach(el => { el.style.display = ''; }); culled = []; } return; }
+  const mx = r.width * 0.9 / k, my = r.height * 0.9 / k, x0 = -cam.x / k - mx, x1 = (r.width - cam.x) / k + mx, y0 = -cam.y / k - my, y1 = (r.height - cam.y) / k + my;
+  const next = [];
+  for (const [i, el] of elOf) { const t = cells[i].top; const off = !t || t[0] < x0 || t[0] > x1 || t[1] < y0 - 40 || t[1] > y1; if (off) next.push(el); }
+  const nset = new Set(next); culled.forEach(el => { if (!nset.has(el)) el.style.display = ''; }); next.forEach(el => { if (el.style.display !== 'none') el.style.display = 'none'; }); culled = next;
+}
+function fixLabels() {
+  if (!world) return;
+  const k = cam.k, inv = 1 / k; labelK = k; labelFocus = focus;
+  svg.classList.toggle('z0', k > 0.9); svg.classList.toggle('z1', k > 1.5); svg.classList.toggle('z2', k > 2.2); svg.classList.toggle('z3', k > 3.4);
+  const fix = (list, sc) => { const t = sc.toFixed(4); for (const l of list) l.setAttribute('transform', `translate(${l.dataset.x},${l.dataset.y}) scale(${t})`); };
   const fd = focus ? districts.indexOf(focus.D) : -1;   // the district you are in shows its numbers in the panel, so its sign steps aside
-  g.querySelectorAll('.sign').forEach(sg => { sg.style.display = k > 2.2 || +sg.dataset.d === fd ? 'none' : ''; });
-  if (!flight && !glide) { unclash(g.querySelectorAll('.sign')); declutter(); }
-  if (k > 1.5) fix('.blab', inv);
-  if (k > 2.2) fix('.mk', inv);
-  viewport();
+  for (const sg of LBL.sign) sg.style.display = k > 2.2 || +sg.dataset.d === fd ? 'none' : '';
+  fix(LBL.sign, Math.min(1.1, inv * 0.95));
+  if (k > 0.9) fix(LBL.lroof, Math.min(1.3, inv * 1.1));
+  if (k > 1.5) fix(LBL.blab, inv);
+  if (k > 2.2) fix(LBL.mk, inv);
+  unclash(LBL.sign); declutter();
 }
 let lastDK = 0, dkTimer = null;
 function declutter() {   // order of importance: signs, class lesson names, Urdu Bab names, roof labels
-  if (Math.abs(cam.k - lastDK) / cam.k < 0.03 && !declutter.force) return;
+  if (Math.abs(cam.k - lastDK) / cam.k < 0.03 && !declutter.force) return;   // (runs only from fixLabels, after a zoom settles)
   clearTimeout(dkTimer); dkTimer = setTimeout(() => {
     lastDK = cam.k; declutter.force = false; const g = $('#world'); if (!g) return;
     const boxes = [], k = cam.k, hit = r => boxes.some(b => r.l < b.r && r.r > b.l && r.t < b.b && r.b > b.t);
-    g.querySelectorAll('.sign').forEach(sg => { if (sg.style.display === 'none') return; const r = sg.getBoundingClientRect(); boxes.push({ l: r.left, r: r.right, t: r.top, b: r.bottom }); });
-    for (const sel of ['.lroof', '.blab']) g.querySelectorAll(sel).forEach(el => {
-      if (getComputedStyle(el).display === 'none') return; el.style.visibility = '';
+    LBL.sign.forEach(sg => { if (sg.style.display === 'none') return; const r = sg.getBoundingClientRect(); boxes.push({ l: r.left, r: r.right, t: r.top, b: r.bottom }); });
+    for (const [list, minK] of [[LBL.lroof, 0.9], [LBL.blab, 1.5]]) { if (k <= minK) continue; list.forEach(el => {
+      el.style.visibility = '';
       const r = el.getBoundingClientRect(), bx = { l: r.left - 3, r: r.right + 3, t: r.top - 1, b: r.bottom + 1 };
-      if (r.width && hit(bx)) el.style.visibility = 'hidden'; else boxes.push(bx); });
+      if (r.width && hit(bx)) el.style.visibility = 'hidden'; else boxes.push(bx); }); }
   }, 90);
 }
 function unclash(list) {
@@ -238,16 +277,16 @@ function unclash(list) {
    takes over at once. Short hops are quick, long ones take longer and lift out a little on the way (never more than 0.7s). */
 let flight = 0, glide = null;
 const stopCamera = () => { if (flight) { cancelAnimationFrame(flight); flight = 0; landed(); } if (glide) { cancelAnimationFrame(glide.id); glide = null; } };
-function landed() { declutter.force = true; apply(); }
+function landed() { declutter.force = true; labelK = 0; if (!zooming) quiet(false); apply(); }
 function fitBox(b, pad, animate) {
   stopCamera();
-  const r = svg.getBoundingClientRect(), k1 = Math.min((r.width - pad * 2) / b.w, (r.height - pad * 2) / b.h);
+  const r = stageRect(), k1 = Math.min((r.width - pad * 2) / b.w, (r.height - pad * 2) / b.h);
   const c1 = { x: b.x + b.w / 2, y: b.y + b.h / 2 }, k0 = cam.k, c0 = { x: (r.width / 2 - cam.x) / k0, y: (r.height / 2 - cam.y) / k0 };
   const put = (c, k) => { cam = { k, x: r.width / 2 - c.x * k, y: r.height / 2 - c.y * k }; };
   if (!animate || reduced) { put(c1, k1); landed(); return; }
   const far = Math.hypot(c1.x - c0.x, c1.y - c0.y) * Math.min(k0, k1) / Math.max(r.width, r.height);
   const dur = Math.max(300, Math.min(700, 300 + 120 * Math.abs(Math.log2(k1 / k0)) + 220 * Math.min(1.5, far)));
-  const lift = Math.min(0.45, far * 0.35), t0 = performance.now();
+  const lift = Math.min(0.45, far * 0.35), t0 = performance.now(); quiet(true);
   const step = t => { const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3);
     const k = Math.exp(Math.log(k0) + (Math.log(k1) - Math.log(k0)) * e) * (1 - lift * Math.sin(Math.PI * p));
     put({ x: c0.x + (c1.x - c0.x) * e, y: c0.y + (c1.y - c0.y) * e }, k); apply();
@@ -279,16 +318,19 @@ const filtering = () => preset !== 'all' || chips.size > 0 || !!query;
 function paintFilter() {
   const on = filtering(); let n = 0;
   const g = $('#towers'); if (!g) return;
-  const ok = cells.map(c => !on || matches(c)); hits = on ? cells.filter((c, i) => ok[i]) : [];
-  for (const el of g.children) { const i = +el.dataset.i; el.classList.toggle('dim', !ok[i]); }
-  ['#marks', '#paths', '#fresh'].forEach(sel => { const box = $(sel); if (box) for (const el of box.children) el.classList.toggle('dim', !ok[+el.dataset.i]); });
+  const ok = on ? cells.map(c => matches(c)) : null; hits = on ? cells.filter((c, i) => ok[i]) : [];
+  for (const el of g.children) { const d = on && !ok[+el.dataset.i]; if (el.classList.contains('dim') !== d) el.classList.toggle('dim', d); }
+  ['#marks', '#paths', '#fresh'].forEach(sel => { const box = $(sel); if (box) for (const el of box.children) { const d = on && !ok[+el.dataset.i]; if (el.classList.contains('dim') !== d) el.classList.toggle('dim', d); } });
+  $('#flats').classList.toggle('dim', on);   // empty plots fade as one; any that match (a search) are outlined on top
+  $('#flathits').innerHTML = on ? hits.filter(c => c.flat).map(c => `<path d="${hullD(c)}"/>`).join('') : '';
   n = hits.length;
   const nf = hits.filter(c => !c.course).length, nl = n - nf;
   $('#count').textContent = on ? (n ? `${n} match${n === 1 ? '' : 'es'}${nf && nl ? ` (${nf} atlas Fasls, ${nl} course lessons)` : nf ? ' (atlas Fasls)' : ' (course lessons)'}` : 'Nothing matches') : '';
   $('#showm').hidden = !on || !n; $('#clear').hidden = !on;
-  const tot = k => cells.filter(c => c.props[k]).length;
-  $('#chips').innerHTML = CHIPS.map(([k, t]) => { const v = tot(k), off = !v && !chips.has(k), a = cells.filter(c => c.props[k] && !c.course).length; return `<button type="button" class="chip${chips.has(k) ? ' on' : ''}" data-chip="${k}" aria-pressed="${chips.has(k)}" title="${off ? 'None right now' : `${a} atlas Fasls, ${v - a} course lessons`}"${off ? ' disabled' : ''}>${t}<span>${v}</span></button>`; }).join('');
-  $('#preset').innerHTML = Object.entries(PRESETS).map(([k, v]) => { const c = k === 'all' ? '' : `<span>${cells.filter(v.f).length}</span>`; return `<button type="button" class="seg-b${k === preset ? ' on' : ''}" data-preset="${k}" aria-pressed="${k === preset}">${v.t}${c}</button>`; }).join('');
+  if (!totals) { totals = {}; for (const [k] of CHIPS) { let v = 0, a = 0; for (const c of cells) if (c.props[k]) { v++; if (!c.course) a++; } totals[k] = [v, a]; } for (const k in PRESETS) totals['p:' + k] = k === 'all' ? 0 : cells.filter(PRESETS[k].f).length; }
+  const tot = k => totals[k][0];
+  $('#chips').innerHTML = CHIPS.map(([k, t]) => { const v = tot(k), off = !v && !chips.has(k), a = totals[k][1]; return `<button type="button" class="chip${chips.has(k) ? ' on' : ''}" data-chip="${k}" aria-pressed="${chips.has(k)}" title="${off ? 'None right now' : `${a} atlas Fasls, ${v - a} course lessons`}"${off ? ' disabled' : ''}>${t}<span>${v}</span></button>`; }).join('');
+  $('#preset').innerHTML = Object.entries(PRESETS).map(([k, v]) => { const c = k === 'all' ? '' : `<span>${totals['p:' + k]}</span>`; return `<button type="button" class="seg-b${k === preset ? ' on' : ''}" data-preset="${k}" aria-pressed="${k === preset}">${v.t}${c}</button>`; }).join('');
   svg.classList.toggle('filtering', on); pinPaint();
 }
 let hits = [];
@@ -325,10 +367,13 @@ function beams() {
   if (!reduced) g.querySelectorAll('path').forEach((pth, i) => { const L = pth.getTotalLength() * cam.k + 4; pth.style.strokeDasharray = L; pth.style.strokeDashoffset = L;
     pth.style.transition = `stroke-dashoffset .4s cubic-bezier(.22,1,.36,1) ${80 + i * 40}ms`; requestAnimationFrame(() => requestAnimationFrame(() => { pth.style.strokeDashoffset = 0; })); });
 }
-function pinPaint() {
-  const g = $('#towers'); if (!g) return;
-  const keep = pinned ? new Set([pinned, ...chainOf(pinned)].map(c => c.i)) : null;
-  for (const el of g.children) { el.classList.toggle('faded', !!keep && !keep.has(+el.dataset.i)); el.classList.toggle('sel', !!pinned && +el.dataset.i === pinned.i); }
+let kept = [];
+function pinPaint() {   // a selection fades the rest through one class on the map; only the chain's own towers are marked
+  if (!world) return;
+  kept.forEach(el => el.classList.remove('keep')); kept = [];
+  if (pinned) for (const c of [pinned, ...chainOf(pinned)]) { const el = elOf.get(c.i); if (el) { el.classList.add('keep'); kept.push(el); } }
+  svg.classList.toggle('pinning', !!pinned);
+  const sp = document.getElementById('selp'); if (sp) sp.setAttribute('d', pinned ? hullD(pinned) : '');
   beams();
 }
 let navDir = 'in';
@@ -342,10 +387,10 @@ function groupRows(levels, lay) {
 }
 function facts(D) {   // what a district really holds: lessons, and for a course how many of its Babs have any lessons yet
   const lv = D.node.levels, sub = D.blocks.filter(B => B.node !== D.node), withL = sub.filter(B => B.cells.length).length, cnt = k => lv.filter(l => l >= k).length;
-  const atlas = D.node.kind === 'Atlas', unit = atlas ? 'Fasls' : (D.node.unit || 'lessons');
+  const atlas = D.node.kind === 'Atlas', unit = atlas ? (tier === 'all' ? 'Fasls' : `${tier} Fasls`) : (D.node.unit || 'lessons');
   let line;
   if (!lv.length) line = D.node.note || 'nothing listed yet';
-  else if (atlas) line = cnt(1) ? `${cnt(1)} of ${lv.length} Fasls written${cnt(4) ? `, ${cnt(4)} taught` : ''}` : `${lv.length} Fasls planned, none written yet`;
+  else if (atlas) line = cnt(1) ? `${cnt(1)} of ${lv.length} ${unit} written${cnt(4) ? `, ${cnt(4)} taught` : ''}` : `${lv.length} ${unit}, none written yet`;
   else if (sub.length > 1 && withL < sub.length) line = `${lv.length} ${unit} in ${withL} of ${sub.length} Babs${cnt(4) ? `, ${cnt(4)} taught` : ''}`;
   else line = `${cnt(1)} of ${lv.length} ${unit} written${cnt(4) ? `, ${cnt(4)} taught` : ''}`;
   return { lv, line, filled: !atlas && sub.length > 1 ? withL / sub.length : 1, babs: sub.length, withL, cnt, unit };
@@ -384,7 +429,7 @@ function panel(c) {
   }
   if (c.isL) { panelL(c); slide(); return; }
   const n = c.node, steps = c.course ? STEP_C : STEP_A;
-  let h = `<span class="kind">${esc(n.kind)}${c.course ? '' : ' · atlas'}</span><h2>${esc(n.code)}</h2>${n.ur ? `<div class="ur" lang="ur" dir="rtl">${esc(n.ur)}</div>` : ''}`;
+  let h = `<span class="kind">${esc(n.kind)}${c.course ? '' : ` · atlas · taught at ${esc(n.m || 'M1')}`}</span><h2>${esc(n.code)}</h2>${n.ur ? `<div class="ur" lang="ur" dir="rtl">${esc(n.ur)}</div>` : ''}`;
   const link = (t, code) => code && byCode.has(code) ? `<a data-goto="${esc(code)}">${esc(t)}</a>` : `<span>${esc(t)}</span>`;
   let chain = [];
   if (n.kind === 'Fasl') { const ss = n.kids || []; chain = [`<b>${esc(n.short)}</b>`, ss.length ? ss.map(s => link(s.code, s.code)).join('<br>') : '<span class="none">no sabaq yet</span>', ss.filter(s => s.L).map(s => `<span>${esc(s.L)}</span>`).join('<br>') || '<span class="none">none</span>']; }
@@ -452,7 +497,7 @@ function fillTip(c, x, y) {
   tip.innerHTML = `<div class="th"><b>${esc(n.code)}</b><span>${esc(stepOf(c))}</span></div>${n.ur ? `<div class="tu" dir="rtl" lang="ur">${esc(n.ur)}</div>` : ''}${f.length ? `<div class="tf">${f.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}${c.props.q ? `<div class="tq">${n.q || (n.sab && n.sab.q)} open questions</div>` : ''}${c.fresh ? `<div class="tn">Changed ${esc(rel(c.fresh.when))}</div>` : ''}`;
   tip.hidden = false; const r = svg.parentNode.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
   tip.style.left = Math.min(x + 16, r.width - w - 8) + 'px'; tip.style.top = Math.min(y + 16, r.height - h - 8) + 'px'; }
-function hover(c) { const el = c ? svg.querySelector(`#towers .c[data-i="${c.i}"]`) : null; if (el === hovEl) return; if (hovEl) hovEl.classList.remove('hov'); hovEl = el; if (el) el.classList.add('hov'); }
+function hover(c) { if (c === hovEl) return; hovEl = c; const h = document.getElementById('hovp'); if (h) h.setAttribute('d', hullD(c)); }
 
 /* ---------- mini-map ---------- */
 let mm = null;
@@ -467,17 +512,17 @@ function minimap() {
   viewport();
 }
 function viewport() {
-  const v = $('#vp'), cv = $('#mini'); if (!mm || !v) return; const r = svg.getBoundingClientRect();
+  const v = $('#vp'), cv = $('#mini'); if (!mm || !v) return; const r = stageRect();
   const x0 = (-cam.x) / cam.k, y0 = (-cam.y) / cam.k, x1 = (r.width - cam.x) / cam.k, y1 = (r.height - cam.y) / cam.k;
   const L = Math.max(0, mm.ox + x0 * mm.k), T = Math.max(0, mm.oy + y0 * mm.k), R2 = Math.min(cv.width, mm.ox + x1 * mm.k), B2 = Math.min(cv.height, mm.oy + y1 * mm.k);
   Object.assign(v.style, { left: L + 'px', top: T + 'px', width: Math.max(4, R2 - L) + 'px', height: Math.max(4, B2 - T) + 'px' });
 }
-$('#mini').addEventListener('click', e => { const r = e.target.getBoundingClientRect(), x = (e.clientX - r.left - mm.ox) / mm.k, y = (e.clientY - r.top - mm.oy) / mm.k, s = svg.getBoundingClientRect(); cam.x = s.width / 2 - x * cam.k; cam.y = s.height / 2 - y * cam.k; apply(); });
+$('#mini').addEventListener('click', e => { const r = e.target.getBoundingClientRect(), x = (e.clientX - r.left - mm.ox) / mm.k, y = (e.clientY - r.top - mm.oy) / mm.k, s = stageRect(); cam.x = s.width / 2 - x * cam.k; cam.y = s.height / 2 - y * cam.k; apply(); });
 
 /* ---------- URL: focus, selection and filters can be bookmarked ---------- */
 function hashSet() {
   const q = new URLSearchParams(); if (focus) q.set('d', focus.D.id); if (focus && focus.B) q.set('b', focus.B.node.short); if (pinned) q.set('p', pinned.node.code);
-  if (chips.size) q.set('f', [...chips].join(',')); if (preset !== 'all') q.set('v', preset); if (rot) q.set('r', rot); if (tableOn) q.set('tab', '1');
+  if (chips.size) q.set('f', [...chips].join(',')); if (preset !== 'all') q.set('v', preset); if (rot) q.set('r', rot); if (tableOn) q.set('tab', '1'); if (tier !== 'M1') q.set('m', tier);
   const h = q.toString(), key = (focus ? focus.D.id : '') + '|' + (focus && focus.B ? focus.B.node.short : ''), url = h ? '#' + h : location.pathname + location.search;
   if (booted && key !== lastKey) history.pushState(null, '', url); else history.replaceState(null, '', url); lastKey = key;
 }
@@ -497,7 +542,7 @@ let drag = null, lastClick = 0;
 /* which plot is under the pointer, worked out from the drawing's own geometry: each plot answers over its whole square and up its
    tower's silhouette, and where two overlap the one nearer the viewer wins. Zoomed far out, the nearest plot within 8px answers. */
 function cellAt(e) {
-  const r = svg.getBoundingClientRect(), x = (e.clientX - r.left - cam.x) / cam.k, y = (e.clientY - r.top - cam.y) / cam.k;
+  const r = stageRect(), x = (e.clientX - r.left - cam.x) / cam.k, y = (e.clientY - r.top - cam.y) / cam.k;
   const el = document.elementFromPoint(e.clientX, e.clientY); if (el && el.closest && el.closest('.sign')) return null;
   let best = null;
   for (const c of cells) { const h = c.hull; if (!h || x < h.x0 || x > h.x1 || y < h.y0 || y > h.y1) continue;
@@ -516,20 +561,20 @@ function zoomAround(mx, my, k) { k = Math.max(0.15, Math.min(16, k)); cam.x = mx
 svg.addEventListener('pointerdown', e => {
   if (e.button) return; e.preventDefault(); stopCamera();
   if (e.pointerType === 'touch') { touches.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { svg.setPointerCapture(e.pointerId); } catch (x) {}
-    if (touches.size >= 2) { const r = svg.getBoundingClientRect(), g = spread(); multi = { cx: g.cx - r.left, cy: g.cy - r.top, d: g.d, k: cam.k, camx: cam.x, camy: cam.y }; drag = null; tip.hidden = true; return; } }
+    if (touches.size >= 2) { const r = stageRect(), g = spread(); multi = { cx: g.cx - r.left, cy: g.cy - r.top, d: g.d, k: cam.k, camx: cam.x, camy: cam.y }; drag = null; tip.hidden = true; return; } }
   drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false, id: e.pointerId }; });
 svg.addEventListener('pointermove', e => {
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (multi && touches.size >= 2) { const r = svg.getBoundingClientRect(), g = spread(), mx = g.cx - r.left, my = g.cy - r.top;
+  if (multi && touches.size >= 2) { const r = stageRect(), g = spread(), mx = g.cx - r.left, my = g.cy - r.top;
     cam.x = multi.camx + mx - multi.cx; cam.y = multi.camy + my - multi.cy; cam.k = multi.k;   // move with the fingers' centre
-    if (multi.d > 8) zoomAround(mx, my, multi.k * g.d / multi.d);                              // and zoom by their spread
+    if (multi.d > 8) { zoomAround(mx, my, multi.k * g.d / multi.d); quiet(true); }               // and zoom by their spread
     apply(); svg.classList.add('grabbing'); return; }
   if (drag && (e.buttons & 1) && (drag.moved || Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 4)) { if (!drag.moved) try { svg.setPointerCapture(drag.id); } catch (x) {} drag.moved = true; cam.x = drag.cx + e.clientX - drag.x; cam.y = drag.cy + e.clientY - drag.y; apply(); svg.classList.add('grabbing'); tip.hidden = true; return; }
   if (e.pointerType === 'mouse') { const r = svg.parentNode.getBoundingClientRect(), c = cellAt(e); hover(c); showTip(c, e.clientX - r.left, e.clientY - r.top); }
 });
 const endTouch = e => { if (!touches.delete(e.pointerId)) return false;
-  if (multi) { if (touches.size >= 2) { const r = svg.getBoundingClientRect(), g = spread(); multi = { cx: g.cx - r.left, cy: g.cy - r.top, d: g.d, k: cam.k, camx: cam.x, camy: cam.y }; }
-    else if (!touches.size) { multi = null; svg.classList.remove('grabbing'); hashSet(); }
+  if (multi) { if (touches.size >= 2) { const r = stageRect(), g = spread(); multi = { cx: g.cx - r.left, cy: g.cy - r.top, d: g.d, k: cam.k, camx: cam.x, camy: cam.y }; }
+    else if (!touches.size) { multi = null; svg.classList.remove('grabbing'); quiet(false); labelK = 0; apply(); hashSet(); }
     return true; }   // a lifted finger never counts as a click while a gesture is on
   return false; };
 svg.addEventListener('pointercancel', e => { endTouch(e); drag = null; svg.classList.remove('grabbing'); });
@@ -545,21 +590,22 @@ svg.addEventListener('pointerup', e => {
   if (sg) { const b = sg.dataset.b; if (b != null) { if (!focus || focus.B !== blocks[+b]) flyToBlock(blocks[+b]); } else if (!focus || focus.D !== districts[+sg.dataset.d]) flyTo(districts[+sg.dataset.d]); return; }
 });
 let wheelEnd;
-svg.addEventListener('wheel', e => { e.preventDefault(); if (flight) stopCamera(); const r = svg.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+svg.addEventListener('wheel', e => { e.preventDefault(); if (flight) stopCamera(); const r = stageRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
   const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? r.height : 1, dx = e.deltaX * unit, dy = e.deltaY * unit;
   const mouseWheel = e.deltaMode !== 0 || (!e.deltaX && Math.abs(e.deltaY) >= 50 && Number.isInteger(e.deltaY));
+  if (e.ctrlKey || (mouseWheel && !e.shiftKey)) zoomTick();
   if (e.ctrlKey) zoomAround(mx, my, cam.k * Math.exp(-dy * 0.01));          // trackpad pinch (and ctrl + wheel)
   else if (mouseWheel && !e.shiftKey) { if (flight) stopCamera(); const to = Math.max(0.15, Math.min(16, (glide ? glide.k : cam.k) * Math.exp(-dy * 0.0015)));
-    if (reduced) zoomAround(mx, my, to); else { if (glide) cancelAnimationFrame(glide.id); glide = { k: to, mx, my, id: 0 };
+    if (reduced) zoomAround(mx, my, to); else { if (glide) cancelAnimationFrame(glide.id); glide = { k: to, mx, my, id: 0 }; quiet(true);
       const run = () => { const g = glide; if (!g) return; const k = cam.k + (g.k - cam.k) * 0.28; zoomAround(g.mx, g.my, Math.abs(g.k - k) < g.k * 0.004 ? g.k : k); apply();
         if (cam.k !== g.k) g.id = requestAnimationFrame(run); else { glide = null; landed(); } };
       glide.id = requestAnimationFrame(run); return; } }
   else { cam.x -= e.shiftKey && !dx ? dy : dx; cam.y -= e.shiftKey && !dx ? 0 : dy; }   // two-finger swipe moves the map
   apply(); tip.hidden = true; clearTimeout(wheelEnd); wheelEnd = setTimeout(hashSet, 300); }, { passive: false });
 let gest = null;   // Safari on a Mac sends pinch as gesture events
-svg.addEventListener('gesturestart', e => { e.preventDefault(); stopCamera(); gest = { k: cam.k }; });
-svg.addEventListener('gesturechange', e => { e.preventDefault(); if (!gest) return; const r = svg.getBoundingClientRect(); zoomAround(e.clientX - r.left, e.clientY - r.top, gest.k * e.scale); apply(); });
-svg.addEventListener('gestureend', e => { e.preventDefault(); gest = null; hashSet(); });
+svg.addEventListener('gesturestart', e => { e.preventDefault(); stopCamera(); gest = { k: cam.k }; quiet(true); });
+svg.addEventListener('gesturechange', e => { e.preventDefault(); if (!gest) return; const r = stageRect(); zoomAround(e.clientX - r.left, e.clientY - r.top, gest.k * e.scale); apply(); });
+svg.addEventListener('gestureend', e => { e.preventDefault(); gest = null; quiet(false); labelK = 0; apply(); hashSet(); });
 document.getElementById('legend').addEventListener('click', e => { if (e.target.closest('#lgmore')) { legendMore = !legendMore; legend(); } });
 const copy = (t, b) => { const done = () => { const o = b.textContent; b.textContent = 'Copied'; setTimeout(() => { b.textContent = o; }, 1200); };
   if (navigator.clipboard) navigator.clipboard.writeText(t).then(done, () => prompt('Copy this:', t)); else prompt('Copy this:', t); };
@@ -598,7 +644,7 @@ $('#fit').onclick = () => { unpin(); fitAll(true); };
 $('#zin').onclick = () => zoomBy(1.4); $('#zout').onclick = () => zoomBy(1 / 1.4);
 $('#help').onclick = () => { $('#helpbox').hidden = !$('#helpbox').hidden; };
 $('#helpbox').addEventListener('click', e => { if (e.target.closest('[data-close]')) $('#helpbox').hidden = true; });
-function zoomBy(f) { const r = svg.getBoundingClientRect(), mx = r.width / 2, my = r.height / 2, k = Math.max(0.15, Math.min(16, cam.k * f)); cam.x = mx - (mx - cam.x) * (k / cam.k); cam.y = my - (my - cam.y) * (k / cam.k); cam.k = k; apply(); }
+function zoomBy(f) { const r = stageRect(), mx = r.width / 2, my = r.height / 2, k = Math.max(0.15, Math.min(16, cam.k * f)); cam.x = mx - (mx - cam.x) * (k / cam.k); cam.y = my - (my - cam.y) * (k / cam.k); cam.k = k; apply(); }
 function turnBy(d) { rot = (rot + d) % 4; const f = focus, p = pinned; draw(); if (f && f.B) flyToBlock(f.B, false); else if (f) flyTo(f.D, false); else fitAll(false); if (p) { pinned = p; pinPaint(); } hashSet(); }
 function stepAlong(d) { if (!pinned) return; const list = pinned.B.cells, i = list.indexOf(pinned), n = list[i + d]; if (n) { navDir = 'none'; select(n, false); } }
 function stepChain(d) { if (!pinned) return; const ch = chainOf(pinned); if (ch.length) select(ch[d > 0 ? 0 : ch.length - 1], true); }
@@ -614,7 +660,8 @@ addEventListener('keydown', e => {
   if (e.key === '+' || e.key === '=') zoomBy(1.4); if (e.key === '-') zoomBy(1 / 1.4);
   if (e.key === '?') $('#helpbox').hidden = !$('#helpbox').hidden;
 });
-addEventListener('resize', () => { if (focus && focus.B) flyToBlock(focus.B, false); else if (focus) flyTo(focus.D, false); else fitAll(false); });
+addEventListener('scroll', () => { sRect = null; }, { passive: true, capture: true });
+addEventListener('resize', () => { sRect = null; if (focus && focus.B) flyToBlock(focus.B, false); else if (focus) flyTo(focus.D, false); else fitAll(false); });
 document.querySelector('.brand').addEventListener('click', e => { e.preventDefault(); unpin(); fitAll(true); });
 
 const REPO_D = { 'maarif-zm': ['zm'], 'maarif-tauheed': ['th'], 'makarim-ul-akhlaq': ['ma', 'akhlaq'], 'maarif-mahdaviyat': ['mahdaviyat'], 'maarif-muqdma': ['mrf'], 'maarif-tazzakur': ['taz'] };
@@ -637,9 +684,22 @@ function freshen(w) {
       for (const m of msg.matchAll(/\bU(\d+)\.(\d+)/g)) { const c = byCode.get(`${pre} B${m[1]} F${m[2]}`); if (c && !c.fresh) c.fresh = ch; }
     }
   }
-  cells.forEach(c => { c.props.changed = !!c.fresh; });
+  cells.forEach(c => { c.props.changed = !!c.fresh; }); totals = null;
 }
 
+/* ---------- Martaba switch: the numbers follow one tier at a time (the courses are on M1) ---------- */
+function tierBar() { $('#tier').innerHTML = `<span class="tl">Martaba</span>` + [...TIERS, ['all', 'every tier']].map(([k, t]) => `<button type="button" class="seg-b${k === tier ? ' on' : ''}" data-tier="${k}" aria-pressed="${k === tier}" title="${k === 'all' ? 'Count every tier together' : `${k} ${t}`}">${k === 'all' ? 'All' : k}</button>`).join(''); }
+function setTier(t) {
+  if (t === tier) return; tier = t;
+  const fD = focus && focus.D.id, fB = focus && focus.B && focus.B.node.short, pc = pinned && pinned.node.code;
+  M = window.OBS.rebuild(tier); pinned = null; focus = null;
+  layout(); index(); freshen(W0); draw();
+  const D = districts.find(d => d.id === fD), B = D && D.blocks.find(b => b.node.short === fB);
+  if (B) flyToBlock(B, false); else if (D) flyTo(D, false); else fitAll(false);
+  const p = byCode.get(pc || ''); if (p) select(p, false); else panel(null);
+  tierBar(); tableView(); hashSet();
+}
+document.addEventListener('click', e => { const b = e.target.closest('#tier [data-tier]'); if (b) setTier(b.dataset.tier); });
 /* ---------- table view: every course and atlas side by side, one small square per lesson ---------- */
 let tableOn = false;
 function tableView() {
@@ -664,13 +724,15 @@ $('#views').addEventListener('click', e => { const a = e.target.closest('[data-v
 $('#tablev').addEventListener('click', e => { const t = e.target.closest('[data-cell],[data-fly],[data-flyb]'); if (!t) return; setView('city');
   if (t.dataset.cell) select(cells[+t.dataset.cell], true); else if (t.dataset.fly) flyTo(districts[+t.dataset.fly]); else flyToBlock(blocks[+t.dataset.flyb]); });
 
-window.OBS.start((m, w) => {
-  M = m; W0 = w; const q = hashRead();
+const ready = (m, w) => {
+  M = m; W0 = w; const q = hashRead(); tierBar();
   layout(); index(); freshen(w); draw();
   const D = districts.find(d => d.id === q.get('d')), B = D && D.blocks.find(b => b.node.short === q.get('b')), p = byCode.get(q.get('p') || '');
   if (B) flyToBlock(B, false); else if (D) flyTo(D, false); else fitAll(false);
   if (p) select(p, false); else panel(null);
   if (q.get('tab')) setView('table');
   booted = true;
-});
+};
+ready.tier = tier;
+window.OBS.start(ready);
 })();
