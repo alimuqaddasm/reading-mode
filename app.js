@@ -429,6 +429,12 @@ function lessonView(L) {
   else if (L.tab === 'changes') h += changesHTML(d);
   else if (L.tab === 'questions') h += `<div class="files">${items.filter(i => i.t === 'q').map(qCard).join('')}</div>`;
   else if (!items.length) h += `<div class="doc"><div class="banner">This version could not be laid out block by block, so it is shown as written.</div><div class="md">${md(d.text)}</div></div>`;
+  else if (L.tab === 'handout' && d.kind === 'sabaq' && d.course === 'ma') {
+    // owner's ruling 2026-11-13: the Handout view stays empty until the Teacher Copy comments are applied and the Handout is written
+    // (course/B0n/MA-B0n-Sn.handout.md, block ids h1, h2 ...); a lesson whose Handout is the fenced layer of its own text keeps showing it
+    const hi = d.handout ? d.handout.items : (items.some(i => i.tc && !SIDE_T.includes(i.t)) ? items : []);
+    h += hi.length ? rowsHTML(hi, 'handout') : `<div class="doc"><div class="banner">No Handout yet. The Handout is written after the owner's comments on the Teacher Copy are applied, and then shows here.</div></div>`;
+  }
   else h += rowsHTML(items, L.tab);
   const nx = neighbours(L);
   h += `<nav style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:26px 44px 0">${nx.prev ? `<a class="card" href="${nx.prev.h}" style="padding:10px 16px"><span class="ui muted" style="font-size:12px;direction:ltr;text-align:right">Previous · ${esc(nx.prev.code)}</span><span style="font-size:17px;line-height:2">${esc(nx.prev.t)}</span></a>` : '<span></span>'}
@@ -707,7 +713,7 @@ function annotateAll(only) {
     const m = S.notes.marks[mkey(bid)] || {};
     row.classList.toggle('drop', m.verdict === 'drop'); row.classList.toggle('keep', m.verdict === 'keep');
     const mk = $('.marks', row);
-    const b = (S.cur.d.items || []).find(x => x.id === bid);
+    const b = (S.cur.d.items || []).concat((S.cur.d.handout || {}).items || []).find(x => x.id === bid);
     if (mk && b && !(document.activeElement && row.contains(document.activeElement) && document.activeElement.matches('input'))) { const tmp = document.createElement('div'); tmp.innerHTML = marksHTML(b); $$('.mv', row).forEach(x => x.parentNode.removeChild(x)); mk.replaceWith(...tmp.childNodes); }
     if (nl) renderMine(nl, mine);
     const seam = $(`.seam[data-b="${bid}"]`);
