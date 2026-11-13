@@ -32,6 +32,14 @@ const PALETTES = {
     distA: '#ebeae4', distC: '#f1ebdf', distLine: '#dcd9cf', blkA: '#e1e0d9', blkC: '#e8e0cf', blkE: '#f3f1ea', blkP: '#f8f7f3', dashP: '#b9ad92', road: '#e4ddcc',
     gnumA: '#9b998f', gnumC: '#a8946d', L: ['#d99a1e', '#e8b54e'], Lp: ['#ece6d6', '#f7f3e9'], path: '#d99a1e', pathP: '#c4b99d', q: '#d4561c', flatA: '#d3d2cb', flatC: '#dcd3bf', beam: '#1d211f',
     mentor: { 'with mentor': '#7b4fc0', revising: '#b4382a', final: '#2c7a35' } },
+  shrine: { name: 'Shrine', stage: ['#d9ccb0', '#b5603a', '#1f9e96', '#22398f', '#d4a017'],
+    distA: '#f0e7d3', distC: '#e7ebea', distLine: '#dcd2bc', blkA: '#e7dbc0', blkC: '#dce2e0', blkE: '#f4efe4', blkP: '#f8f5ee', dashP: '#b8a77f', road: '#e4d8bf',
+    gnumA: '#a58d5f', gnumC: '#7d8f8b', L: ['#d4a017', '#e8bf4a'], Lp: ['#efe8d8', '#f8f4ea'], path: '#c99a17', pathP: '#c9bb98', q: '#9b1d4b', flatA: '#dccfb2', flatC: '#d0d7d5', beam: '#3b2f2a',
+    mentor: { 'with mentor': '#6a4c93', revising: '#9b1d4b', final: '#2e7d32' } },
+  manuscript: { name: 'Manuscript', stage: ['#ddd4c0', '#6e5440', '#c4402f', '#2c4a9a', '#d4a017'],
+    distA: '#f2ead8', distC: '#ece6da', distLine: '#ddd3bd', blkA: '#e9dfc6', blkC: '#e3dccd', blkE: '#f5f0e5', blkP: '#f9f6ef', dashP: '#b8a77f', road: '#e6dbc3',
+    gnumA: '#a58d5f', gnumC: '#9a8668', L: ['#d4a017', '#e8bf4a'], Lp: ['#efe8d8', '#f8f4ea'], path: '#c99a17', pathP: '#c9bb98', q: '#7a1f5c', flatA: '#ddd2b8', flatC: '#d8d0bf', beam: '#3b2f2a',
+    mentor: { 'with mentor': '#2c4a9a', revising: '#7a1f5c', final: '#2e7d32' } },
 };
 const PAL = PALETTES[new URLSearchParams(location.search).get('pal')] || PALETTES.now;
 const SOLID = PAL.stage;
