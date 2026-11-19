@@ -233,6 +233,7 @@ mark.on{background:var(--hl-on)}
 .mcard.note{background:var(--note-w);box-shadow:none}
 .mcard.note p{margin:0;font-size:15.5px;line-height:2.1;color:var(--ink)}
 .mcard.note p.en,.en{font-family:var(--ui);direction:ltr;text-align:left;font-size:14.5px;line-height:1.65}
+.en .nar.nblk{display:block;text-align:right;margin:4px 0;padding:2px 8px;border-right:3px solid var(--note);font-size:1.08em}
 .en .nar{font-family:var(--ur);font-size:1.05em;line-height:2;unicode-bidi:isolate}
 .mcard.note.clip p{max-height:8.4em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent)}
 .mcard .more{align-self:flex-start;font-family:var(--ui);font-size:12px;font-weight:600;border:0;background:none;color:var(--note);padding:0;direction:ltr}

@@ -355,8 +355,8 @@ const markable = b => !['h2', 'ikh', 'ikh-end', 'tnote', 'q'].includes(b.t);
 const isContent = b => !['h2', 'h3', 'ikh', 'ikh-end', 'tnote', 'q'].includes(b.t);
 /* English editor notes (Ali, 2026-11-19): a note written mostly in Latin letters reads left to right in the UI font;
    Arabic-script runs inside it keep their own direction and the Urdu font. */
-const isEnNote = h => { const s = String(h).replace(/<[^>]*>/g, ''); const lat = (s.match(/[A-Za-z]/g) || []).length, ar = (s.match(/[\u0600-\u06FF]/g) || []).length; return lat > ar; };
-const enNote = h => String(h).replace(/(^|>)([^<]*)/g, (m, a, txt) => a + txt.replace(/[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF][\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF\u064B-\u065F\s\u060C\u061B\u061F()\[\].,:;\-«»0-9\u06F0-\u06F9]*[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF\u064B-\u065F]|[\u0600-\u06FF]/g, r => `<span class="nar" dir="rtl">${r}</span>`));
+const isEnNote = h => { const s = String(h).replace(/<[^>]*>/g, ''); const m = s.match(/[A-Za-z؀-ۿ]/); return !!m && /[A-Za-z]/.test(m[0]); };
+const enNote = h => String(h).replace(/(^|>)([^<]*)/g, (m, a, txt) => a + txt.replace(/[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF][\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF\u064B-\u065F\s\u060C\u061B\u061F()\[\].,:;\-«»0-9\u06F0-\u06F9]*[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF\u064B-\u065F]|[\u0600-\u06FF]/g, r => `<span class="nar${r.length > 50 ? ' nblk' : ''}" dir="rtl">${r}</span>`));
 const noteBody = h => isEnNote(h) ? `<p class="en" dir="ltr">${enNote(h)}</p>` : `<p>${h}</p>`;
 function noteCard(b, i, n) {
   const long = b.h.length > 380;
