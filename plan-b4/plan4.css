@@ -1,0 +1,40 @@
+/* Bab 4 plan page: collapsible lessons, chips, hidden refs (Ali, 2026-11-19) */
+.ar{font-family:var(--ur);direction:rtl;unicode-bidi:isolate;line-height:2.1}
+.lede{font-size:1.02em;color:var(--soft)}
+.legend{font-size:.86em;color:var(--soft);line-height:2.2}
+.bab{font-size:1.25em;text-align:right;background:var(--accent-w);border-radius:12px;padding:10px 16px;margin:8px 0 14px}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+.tools .btn[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+h2.mv{margin-top:34px;font-size:1.15em;border-bottom:2px solid var(--rule);padding-bottom:6px}
+h2 .k,.blk>summary .k{font-weight:500;color:var(--faint);font-size:.8em;margin-left:6px}
+details.les{background:var(--paper);border:1px solid var(--rule);border-radius:14px;margin:10px 0;padding:0}
+details.les>summary{cursor:pointer;list-style:none;padding:12px 16px;display:flex;flex-direction:column;gap:2px}
+details.les>summary::-webkit-details-marker{display:none}
+details.les>summary h3{margin:0;display:flex;gap:12px;align-items:baseline;justify-content:space-between;font-size:1em}
+details.les>summary .num{font-family:var(--ui);font-weight:700;color:var(--accent);flex:none}
+details.les>summary .t{font-family:var(--ur);font-weight:400;font-size:1.22em;line-height:2.1;text-align:right;flex:1}
+details.les>summary .mini{font-size:.78em;color:var(--faint)}
+details.les[open]>summary{border-bottom:1px solid var(--rule);background:var(--wash);border-radius:14px 14px 0 0}
+details.les>*:not(summary){margin-left:16px;margin-right:16px}
+.q{margin:14px 16px 6px;padding:10px 14px;border-left:4px solid var(--accent);background:var(--accent-w);border-radius:8px}
+.q .ar{font-size:1.15em}
+details.blk{margin:8px 16px;border-top:1px dashed var(--rule)}
+details.blk>summary{cursor:pointer;font-weight:600;padding:8px 0;color:var(--accent)}
+details.blk[open]>summary{margin-bottom:2px}
+details.blk li{margin:6px 0}
+details.blk ol>li{padding:4px 0}
+details.blk ol>li>b:first-child{display:block}
+details.blk ul ul{font-size:.94em}
+details.les>details.blk:last-child{margin-bottom:14px}
+.ref{display:none;color:var(--faint);font-size:.82em}
+body.refs .ref{display:inline}
+.chip{display:inline-block;font-family:var(--ui);font-size:.74em;font-weight:600;border-radius:999px;padding:1px 9px;margin:0 3px;vertical-align:1px;white-space:nowrap;direction:ltr}
+.chip.new{background:#e3f2e5;color:#22622b}.chip.part{background:#e6eefa;color:#22489a}.chip.same{background:#efe9f8;color:#5b2ea0}
+.chip.core{background:#fbe9d8;color:#8a4500}.chip.ask{background:#fbf1dc;color:#7a4f00}.chip.ai{background:#fde3e1;color:#a2241b}
+:root[data-theme="dark"] .chip{filter:brightness(.85) saturate(1.2)}
+.rec,.nw{display:block;font-size:.92em;margin:2px 0 0 10px}
+.rec{color:var(--soft)}
+.small{font-size:.8em;color:var(--faint)}
+.toc .ar{font-size:.95em;line-height:1.9}
+@media (max-width:600px){details.les>summary h3{flex-direction:column;gap:0}details.les>summary .t{text-align:right;width:100%}}
+.refonly{display:none}body.refs .refonly{display:list-item}
