@@ -353,9 +353,14 @@ function blockHTML(b, prev) {
 const SIDE_T = ['tnote', 'q'];
 const markable = b => !['h2', 'ikh', 'ikh-end', 'tnote', 'q'].includes(b.t);
 const isContent = b => !['h2', 'h3', 'ikh', 'ikh-end', 'tnote', 'q'].includes(b.t);
+/* English editor notes (Ali, 2026-11-19): a note written mostly in Latin letters reads left to right in the UI font;
+   Arabic-script runs inside it keep their own direction and the Urdu font. */
+const isEnNote = h => { const s = String(h).replace(/<[^>]*>/g, ''); const lat = (s.match(/[A-Za-z]/g) || []).length, ar = (s.match(/[\u0600-\u06FF]/g) || []).length; return lat > ar; };
+const enNote = h => String(h).replace(/(^|>)([^<]*)/g, (m, a, txt) => a + txt.replace(/[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF][\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF\u064B-\u065F\s\u060C\u061B\u061F()\[\].,:;\-«»0-9\u06F0-\u06F9]*[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF\u064B-\u065F]|[\u0600-\u06FF]/g, r => `<span class="nar" dir="rtl">${r}</span>`));
+const noteBody = h => isEnNote(h) ? `<p class="en" dir="ltr">${enNote(h)}</p>` : `<p>${h}</p>`;
 function noteCard(b, i, n) {
   const long = b.h.length > 380;
-  return `<div class="mcard note${long ? ' clip' : ''}" data-tn="${b.id}"><span class="mh"><span><i class="sq" style="background:var(--note)"></i> Editor note</span><span>${i} of ${n}</span></span><p>${b.h}</p>${long ? '<button type="button" class="more" data-act="more">Show all</button>' : ''}</div>`;
+  return `<div class="mcard note${long ? ' clip' : ''}" data-tn="${b.id}"><span class="mh"><span><i class="sq" style="background:var(--note)"></i> Editor note</span><span>${i} of ${n}</span></span>${noteBody(b.h)}${long ? '<button type="button" class="more" data-act="more">Show all</button>' : ''}</div>`;
 }
 function qCard(b) {
   return `<div class="mcard q" id="q-${esc(b.qid)}"><span class="mh"><span>Open question</span><span>${esc(b.qid)}</span></span>
@@ -1000,7 +1005,7 @@ function listPanel(kind) {
   const items = S.cur.d.items || [];
   let rows = [];
   const near = it => { const i = items.indexOf(it); for (let k = i; k >= 0; k--) if (!SIDE_T.includes(items[k].t)) return items[k].id; return it.id; };
-  if (kind === 'note') rows = items.filter(i => i.t === 'tnote').map((it, k) => ({ b: near(it), h: `<span class="ui muted" style="font-size:12px;direction:ltr;text-align:right">Editor note ${k + 1}</span><span style="font-size:15.5px;line-height:2.1">${it.h}</span>` }));
+  if (kind === 'note') rows = items.filter(i => i.t === 'tnote').map((it, k) => ({ b: near(it), h: `<span class="ui muted" style="font-size:12px;direction:ltr;text-align:right">Editor note ${k + 1}</span>${isEnNote(it.h) ? `<span class="en" dir="ltr" style="font-size:14.5px;line-height:1.65">${enNote(it.h)}</span>` : `<span style="font-size:15.5px;line-height:2.1">${it.h}</span>`}` }));
   if (kind === 'q') rows = items.filter(i => i.t === 'q').map(it => ({ b: near(it), h: `<span class="ui" style="font-size:13px;direction:ltr;text-align:left"><b>${esc(it.qid)}</b> ${esc(it.title)}</span>` }));
   if (kind === 'tc') rows = items.filter(i => i.tc && !SIDE_T.includes(i.t)).map(it => ({ b: it.id, h: `<span style="font-size:15.5px;line-height:2.1">${(it.s || []).map(s => s.h).join(' ').slice(0, 300) || (it.ar || []).join(' ') || it.h || ''}</span>` }));
   if (kind === 'mine') rows = Object.entries(S.notes.notes).filter(([, n]) => n.lesson === S.cur.key).map(([, n]) => ({ b: n.block, h: `${n.quote ? `<q style="font-size:14.5px;color:var(--faint)">${esc(n.quote)}</q>` : ''}<span style="unicode-bidi:plaintext">${esc(n.text || '(empty note)')}</span>` }));

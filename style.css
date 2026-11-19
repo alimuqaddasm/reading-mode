@@ -232,6 +232,8 @@ mark.on{background:var(--hl-on)}
 .mcard.note .mh{color:var(--note)}
 .mcard.note{background:var(--note-w);box-shadow:none}
 .mcard.note p{margin:0;font-size:15.5px;line-height:2.1;color:var(--ink)}
+.mcard.note p.en,.en{font-family:var(--ui);direction:ltr;text-align:left;font-size:14.5px;line-height:1.65}
+.en .nar{font-family:var(--ur);font-size:1.05em;line-height:2;unicode-bidi:isolate}
 .mcard.note.clip p{max-height:8.4em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent)}
 .mcard .more{align-self:flex-start;font-family:var(--ui);font-size:12px;font-weight:600;border:0;background:none;color:var(--note);padding:0;direction:ltr}
 .mcard.q{background:var(--q-w);box-shadow:inset 0 0 0 1.5px var(--q-line)}
