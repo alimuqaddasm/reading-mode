@@ -17,7 +17,19 @@ LIVE = "https://alimuqaddasm.github.io/reading-mode/"
 TAG = "Published-From: "
 
 
+def _id():
+    get = lambda k: subprocess.run(["git", "config", k], capture_output=True, text=True).stdout.strip()
+    return get("user.name") or "Claude", get("user.email") or "noreply@anthropic.com"
+
+
+ID = _id()
+
+
 def git(*a, env=None, check=True):
+    if a[0] in ("commit", "commit-tree"):  # a machine with no git author set still publishes
+        env = dict(env or os.environ)
+        for k in ("AUTHOR", "COMMITTER"):
+            env.setdefault(f"GIT_{k}_NAME", ID[0]); env.setdefault(f"GIT_{k}_EMAIL", ID[1])
     r = subprocess.run(["git", *a], capture_output=True, text=True, env=env)
     if check and r.returncode:
         sys.exit(f"git {' '.join(a)} failed:\n{r.stderr.strip()}")
