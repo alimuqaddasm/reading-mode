@@ -80,9 +80,9 @@ function model(w, tier) {
   atlases.sort((x, y) => order.indexOf(x.short.toLowerCase()) - order.indexOf(y.short.toLowerCase()));
   const courses = w.courses.map(c => {
     const babs = c.babs.map(b => {
-      const kids = b.hub.map(H => ({ kind: 'Sabaq', cid: c.id, bab: b.n, n: H.h, has: H.has || [], code: `${c.code} B${b.n} S${H.h}`, short: 'S' + H.h, ur: H.ur, size: 1, lay: COURSE_LAY, unit: 'Fasls and class lesson',
+      const kids = b.hub.map(H => ({ kind: 'Sabaq', cid: c.id, cc: c.code, bab: b.n, n: H.h, has: H.has || [], code: `${c.code} B${b.n} S${H.h}`, short: 'S' + H.h, ur: H.ur, size: 1, lay: COURSE_LAY, unit: 'Fasls and class lesson',
         levels: [H.L && H.Ls === 'taught' ? 4 : stageOf(H.has)], L: H.L ? `L${H.L} ${H.Ls}` : '', fasls: H.fasls || [], fkeys: (H.fasls || []).map(u => c.atlas + ':' + u.replace(/^U/, '').split('-')[0]),
-        Lnode: H.L ? { kind: 'Class lesson', n: H.L, taught: H.Ls === 'taught', has: H.has || [], code: `${c.code} B${b.n} L${H.L}`, short: 'L' + H.L, ur: H.ur, size: 1, lay: COURSE_LAY, levels: [H.Ls === 'taught' ? 4 : stageOf(H.has)], note: H.Ls === 'taught' ? 'Taught in class' : 'Planned, not taught yet', wm: `${WM}#course?c=${c.id}&b=${b.n}&s=${c.id}-${b.n}-${H.h}`, rm: `${RM}#${c.id}/${b.n}/${H.h}` } : null,
+        Lnode: H.L ? { kind: 'Class lesson', cc: c.code, bab: b.n, n: H.L, taught: H.Ls === 'taught', has: H.has || [], code: `${c.code} B${b.n} L${H.L}`, short: 'L' + H.L, ur: H.ur, size: 1, lay: COURSE_LAY, levels: [H.Ls === 'taught' ? 4 : stageOf(H.has)], note: H.Ls === 'taught' ? 'Taught in class' : 'Planned, not taught yet', wm: `${WM}#course?c=${c.id}&b=${b.n}&s=${c.id}-${b.n}-${H.h}`, rm: `${RM}#${c.id}/${b.n}/${H.h}` } : null,
         wm: `${WM}#course?c=${c.id}&b=${b.n}&s=${c.id}-${b.n}-${H.h}`, rm: `${RM}#${c.id}/${b.n}/${H.h}` }));
       const PLAN = { settled: 'Bab settled', provisional: 'Bab provisional: its Fasls may still move', placeholder: 'Placeholder: the old atlas Bab, not reworked yet' };
       const an = c.atlas ? c.atlas[0].toUpperCase() + c.atlas.slice(1) : '';
@@ -147,13 +147,33 @@ function annotate(M, ri, marks) {
   }
 }
 
+/* ---------- lesson badges (plan P7.4): the shared kit/badge.js reads hub-notes/layers.json, written on EX-44.
+   The page hands it numbers only. Mentor view (Preview, Approved) is the default; "All layers" adds In main and Draft. ---------- */
+const BV = 'city.badges';
+const badgeView = () => { try { return localStorage.getItem(BV) === 'all' ? 'all' : 'mentor'; } catch (e) { return 'mentor'; } };
+let LAYERS = null;
+function badge(n) {   // n: a Sabaq node or a Class lesson node
+  if (!LAYERS || !n || !n.cc) return '';
+  const parts = n.kind === 'Class lesson' ? { bab: n.bab, lesson: n.n } : n.kind === 'Sabaq' ? { bab: n.bab, sabaq: n.n, hub: n.n } : null;
+  const b = parts && LAYERS.badge(n.cc, parts, { view: badgeView() });
+  return b ? `<span class="${b.cls}" title="${esc(b.tip)}">${esc(b.word)}</span>` : '';
+}
+function badgeBar(onchange) {
+  const el = $('#bview'); if (!el) return;
+  if (typeof EX44Badge !== 'undefined') EX44Badge.injectCss(document);
+  const a = LAYERS ? LAYERS.asOf() : { text: 'lesson status: not known', old: true }, v = badgeView();
+  el.innerHTML = `<span class="ex44-asof${a.old ? ' ex44-asof--old' : ''}" title="When EX-44 last measured each lesson's layer">Badges ${esc(a.text)}</span> <button type="button" class="link" aria-pressed="${v === 'all'}" title="${v === 'all' ? 'Back to the mentor view: Preview and Approved only' : 'Also show In main and Draft'}">${v === 'all' ? 'All layers' : 'Mentor view'}</button>`;
+  el.querySelector('button').onclick = () => { try { v === 'all' ? localStorage.removeItem(BV) : localStorage.setItem(BV, 'all'); } catch (e) {} badgeBar(onchange); onchange && onchange(); };
+}
+
 /* ---------- start: key, then data, then the view ---------- */
 const screen = id => ['connect', 'app', 'loading'].forEach(x => { $('#' + x).hidden = x !== id; });
 function start(ready) {
   async function load() {
     screen('loading');
     try {
-      const [w, ri, marks] = await Promise.all([raw('workmap.json'), raw('reading/index.json').catch(() => null), raw('marks.json', API_NOTES).catch(() => ({}))]);
+      const [w, ri, marks, lay] = await Promise.all([raw('workmap.json'), raw('reading/index.json').catch(() => null), raw('marks.json', API_NOTES).catch(() => ({})), raw('layers.json', API_NOTES).catch(() => null)]);
+      try { LAYERS = lay && typeof EX44Badge !== 'undefined' ? EX44Badge.read(lay) : null; } catch (e) { LAYERS = null; }
       const M = model(w, ready.tier); annotate(M, ri, marks || {});
       window.OBS.rebuild = tier => { const m2 = model(w, tier); annotate(m2, ri, marks || {}); return m2; };
       const age = (Date.now() - Date.parse(String(w.made || '').replace(' UTC', '').replace(' ', 'T') + 'Z')) / 36e5, mk = $('#made');
@@ -168,5 +188,5 @@ function start(ready) {
   $('#keyform').addEventListener('submit', e => { e.preventDefault(); const v = $('#key').value.trim(); if (!v) return; setKey(v); $('#key').value = ''; load(); });
   if (getKey()) load(); else screen('connect');
 }
-window.OBS = { TIERS, RM, WM, $, esc, reduced, COL, SOLID, PAL, ATLAS_LAY, COURSE_LAY, fracs, counts, stageOf, model, bar, side, legendHTML, dropSVG, start };
+window.OBS = { badge, badgeBar, TIERS, RM, WM, $, esc, reduced, COL, SOLID, PAL, ATLAS_LAY, COURSE_LAY, fracs, counts, stageOf, model, bar, side, legendHTML, dropSVG, start };
 })();

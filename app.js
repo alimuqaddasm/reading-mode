@@ -60,6 +60,7 @@ async function load() {
     S.index = idx; S.audio = aud || {};
     if (j) { S.notes = JSON.parse(b64dec(j.content)); S.notesSha = j.sha; } else { S.notes = { notes: {}, marks: {} }; S.notesSha = null; }
     S.notes.notes = S.notes.notes || {}; S.notes.marks = S.notes.marks || {};
+    try { S.layers = EX44Badge.read(JSON.parse(b64dec((await gh('layers.json')).content))); } catch (e) { S.layers = null; }
     route();
   } catch (e) {
     if (e.status === 401 || e.status === 404) { setKey(''); connect(e.status === 404 ? 'This key cannot open hub-data and hub-notes. Make a key for those two repos (steps above) and paste it here.' : e.message); return; }
@@ -152,12 +153,26 @@ async function route() {
 }
 
 /* ---------- top bar ---------- */
+/* ---------- lesson badges (plan P7.3): the shared kit/badge.js reads hub-notes/layers.json, written on EX-44.
+   The page hands it numbers only. Mentor view (Preview, Approved) is the default; "All layers" adds In main and Draft. ---------- */
+const badgeView = () => LS.get('badges', 'mentor') === 'all' ? 'all' : 'mentor';
+function lbadge(c, parts) {
+  const b = S.layers && c && S.layers.badge(c.code, parts, { view: badgeView() });
+  return b ? `<span class="${b.cls}" title="${esc(b.tip)}">${esc(b.word)}</span>` : '';
+}
+const sbadge = (c, bn, s) => lbadge(c, { bab: bn, sabaq: s.n, hub: s.n });
+function badgeBar() {
+  if (typeof EX44Badge !== 'undefined') EX44Badge.injectCss(document);
+  const a = S.layers ? S.layers.asOf() : { text: 'lesson status: not known', old: true }, v = badgeView();
+  return `<span class="ex44-asof${a.old ? ' ex44-asof--old' : ''}" title="When EX-44 last measured each lesson's layer">Badges ${esc(a.text)}</span>` +
+    `<button type="button" class="btn" id="bBadges" aria-pressed="${v === 'all'}" title="${v === 'all' ? 'Back to the mentor view: Preview and Approved only' : 'Also show In main and Draft'}">${v === 'all' ? 'All layers' : 'Mentor view'}</button>`;
+}
 function topBar(o) {
   if (typeof AU !== 'undefined' && AU.key && o.lessonKey !== AU.key) closePlayer();
   const crumbs = (o.crumbs || []).map((c, i, a) => (i ? ICON.chev : '') + (i === a.length - 1 ? `<span class="cur${c.ui ? ' c ui' : ''}">${esc(c.t)}</span>` : `<a href="${c.h}"${c.ui ? ' class="c ui"' : ''}>${esc(c.t)}</a>`)).join('');
   const wm = o.wm || WM;
   let h = `<div class="top1"><button type="button" class="btn tocbtn" id="bToc">${ICON.menu}Contents</button>
-    <a class="brand" href="#"><span class="mk">${ICON.book}</span>Reading Mode</a>${o.path || `<nav class="crumb" aria-label="Where you are">${crumbs}</nav>`}<span class="tools"><span class="save" id="save"></span>
+    <a class="brand" href="#"><span class="mk">${ICON.book}</span>Reading Mode</a>${o.path || `<nav class="crumb" aria-label="Where you are">${crumbs}</nav>`}<span class="tools"><span class="save" id="save"></span>${badgeBar()}
     <a class="btn" href="${esc(wm)}" target="wm" title="Open this place in the Work Map">${ICON.wm}Work Map</a>
     <button type="button" class="btn icon" id="bTheme" aria-label="Dark or light">${ICON.moon}</button>
     <button type="button" class="btn" id="bForget" title="Remove your key from this browser">Forget key</button></span></div>`;
@@ -166,6 +181,7 @@ function topBar(o) {
   $('#bForget').onclick = () => { if (dirty || saving) { toast('Wait a moment: your last note is still saving.'); return; } closePlayer(); closeDrawer(); setKey(''); S.index = null; S.cur = null; S.notes = { notes: {}, marks: {} }; $('#view').innerHTML = ''; connect('Your key was removed from this browser.'); };
   $('#bTheme').onclick = () => { const r = document.documentElement; const dark = r.dataset.theme === 'dark' || (!r.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches); r.dataset.theme = dark ? 'light' : 'dark'; LS.set('theme', r.dataset.theme); };
   const tb = $('#bToc'); if (o.rail) tb.onclick = openDrawer; else tb.hidden = true;
+  $('#bBadges').onclick = () => { LS.set('badges', badgeView() === 'all' ? 'mentor' : 'all'); route(); };
 }
 function openDrawer() {
   closeDrawer();
@@ -226,12 +242,12 @@ function courseView(c) {
     let sec = null;
     for (const s of b.sabaq) {
       if (flat && s.section && s.section !== sec) { sec = s.section; h += `<div class="li off" style="min-height:40px;background:var(--paper-2)"><span></span><span class="t" style="font-size:15px;font-weight:700;color:var(--soft)">${esc(sec)}</span><span></span></div>`; }
-      h += `<a class="li" href="#${c.id}/${b.n}/${s.slug}"><span class="n">${esc(s.label)}</span><span class="t">${esc(s.title)}</span><span class="meta">${s.L ? `<span class="pill ${s.Ls === 'planned' ? 'lp' : 'l'}">L${s.L} ${s.Ls === 'planned' ? 'planned' : 'taught'}</span>` : ''}${s.notes ? `<span class="pill note">${s.notes} notes</span>` : ''}${s.q ? `<span class="pill q">${s.q} questions</span>` : ''}${s.tc ? `<span class="pill tc">${s.tc} teacher only</span>` : ''}${s.text ? '<span class="pill off">plain text</span>' : ''}</span></a>`;
+      h += `<a class="li" href="#${c.id}/${b.n}/${s.slug}"><span class="n">${esc(s.label)}</span><span class="t">${esc(s.title)}</span><span class="meta">${sbadge(c, b.n, s)}${s.L ? `<span class="pill ${s.Ls === 'planned' ? 'lp' : 'l'}">L${s.L} ${s.Ls === 'planned' ? 'planned' : 'taught'}</span>` : ''}${s.notes ? `<span class="pill note">${s.notes} notes</span>` : ''}${s.q ? `<span class="pill q">${s.q} questions</span>` : ''}${s.tc ? `<span class="pill tc">${s.tc} teacher only</span>` : ''}${s.text ? '<span class="pill off">plain text</span>' : ''}</span></a>`;
     }
     h += `</div>`;
     if (b.lessons && b.lessons.length) {
       h += `<div class="shead" style="margin-top:14px"><h2>B${b.n} class lesson texts</h2><span>Written from a hub sabaq for one class; every version kept</span></div><div class="list">`;
-      for (const l of b.lessons) h += `<a class="li" href="#${c.id}/${b.n}/${l.slug}"><span class="n" style="color:var(--gold-ink)">L${l.L}</span><span class="t">${esc(l.title)}</span><span class="meta"><span class="pill off">${esc(l.variant || 'main text')}</span><span class="pill off">${esc(l.where.split('/')[0])}</span></span></a>`;
+      for (const l of b.lessons) h += `<a class="li" href="#${c.id}/${b.n}/${l.slug}"><span class="n" style="color:var(--gold-ink)">L${l.L}</span><span class="t">${esc(l.title)}</span><span class="meta">${lbadge(c, { bab: b.n, lesson: l.L })}<span class="pill off">${esc(l.variant || 'main text')}</span><span class="pill off">${esc(l.where.split('/')[0])}</span></span></a>`;
       h += `</div>`;
     }
     h += `</section>`;
@@ -497,7 +513,7 @@ function lessonsRail(L) {
     const cur = parse().seg[2];
     head = L.course.id === 'mrf' ? `${b.sabaq.length} lessons` : `B${b.n} · ${b.sabaq.length} sabaq`;
     items = b.sabaq.map(x => { const on = d.kind === 'sabaq' && (x.slug === d.slug || x.n === d.n);
-      return `<a class="lsn${on ? ' on' : ''}" href="#${L.course.id}/${b.n}/${x.slug}"${on ? ' aria-current="page"' : ''}><b>${esc(x.label)}</b><span class="lt">${esc(x.title)}</span>${x.L ? `<i class="${x.Ls === 'planned' ? 'lp' : 'l'}">L${x.L}</i>` : ''}</a>`; }).join('');
+      return `<a class="lsn${on ? ' on' : ''}" href="#${L.course.id}/${b.n}/${x.slug}"${on ? ' aria-current="page"' : ''}><b>${esc(x.label)}</b><span class="lt">${esc(x.title)}</span>${sbadge(L.course, b.n, x)}${x.L ? `<i class="${x.Ls === 'planned' ? 'lp' : 'l'}">L${x.L}</i>` : ''}</a>`; }).join('');
     if (b.lessons && b.lessons.length) items += `<span class="lsh">Class lesson texts</span>` + b.lessons.map(l => { const on = d.kind === 'class' && l.slug === cur;
       return `<a class="lsn${on ? ' on' : ''}" href="#${L.course.id}/${b.n}/${l.slug}"${on ? ' aria-current="page"' : ''}><b>L${l.L}</b><span class="lt">${esc(l.title)}</span>${l.variant ? `<i class="v">${esc(l.variant)}</i>` : ''}</a>`; }).join('');
   } else {
