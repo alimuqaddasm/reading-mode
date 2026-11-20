@@ -163,7 +163,7 @@ function lbadge(c, parts) {
 const sbadge = (c, bn, s) => lbadge(c, { bab: bn, sabaq: s.n, hub: s.n });
 function badgeBar() {
   if (typeof EX44Badge !== 'undefined') EX44Badge.injectCss(document);
-  const a = S.layers ? S.layers.asOf() : { text: 'lesson status: not known', old: true }, v = badgeView();
+  const a = S.layers ? S.layers.asOf() : { text: 'not known yet', old: true }, v = badgeView();
   return `<span class="ex44-asof${a.old ? ' ex44-asof--old' : ''}" title="When EX-44 last measured each lesson's layer">Badges ${esc(a.text)}</span>` +
     `<button type="button" class="btn" id="bBadges" aria-pressed="${v === 'all'}" title="${v === 'all' ? 'Back to the mentor view: Preview and Approved only' : 'Also show In main and Draft'}">${v === 'all' ? 'All layers' : 'Mentor view'}</button>`;
 }

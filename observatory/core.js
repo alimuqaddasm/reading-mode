@@ -161,7 +161,7 @@ function badge(n) {   // n: a Sabaq node or a Class lesson node
 function badgeBar(onchange) {
   const el = $('#bview'); if (!el) return;
   if (typeof EX44Badge !== 'undefined') EX44Badge.injectCss(document);
-  const a = LAYERS ? LAYERS.asOf() : { text: 'lesson status: not known', old: true }, v = badgeView();
+  const a = LAYERS ? LAYERS.asOf() : { text: 'not known yet', old: true }, v = badgeView();
   el.innerHTML = `<span class="ex44-asof${a.old ? ' ex44-asof--old' : ''}" title="When EX-44 last measured each lesson's layer">Badges ${esc(a.text)}</span> <button type="button" class="link" aria-pressed="${v === 'all'}" title="${v === 'all' ? 'Back to the mentor view: Preview and Approved only' : 'Also show In main and Draft'}">${v === 'all' ? 'All layers' : 'Mentor view'}</button>`;
   el.querySelector('button').onclick = () => { try { v === 'all' ? localStorage.removeItem(BV) : localStorage.setItem(BV, 'all'); } catch (e) {} badgeBar(onchange); onchange && onchange(); };
 }
