@@ -9,5 +9,7 @@ Every lesson, note, flag and open question in one reader, linked from the Maarif
 - Marks (Keep, Drop, Maybe, Key, Move, Needs a bridge) and notes are saved to `reading/notes.json` in the hub.
 - Covers every course (ZM, TH, MA, Muqaddima, Tazzakur) and every atlas on main (Mahdaviyat, Tauheed, Akhlaq, Adl, Maad).
 
-To host: Settings > Pages > Deploy from a branch, choose the branch with these files and `/ (root)`.
-Published from the `gh-pages` branch.
+`main` is the source. GitHub Pages serves the `gh-pages` branch, which only `publish.py` writes:
+`python3 publish.py plan`, then `python3 publish.py go "message"`, then `python3 publish.py verify`.
+A hand copy straight onto `gh-pages` still works; `python3 publish.py takeback` brings it into `main`.
+`CLAUDE.md`, `.gitignore` and `publish.py` stay on `main` only.
