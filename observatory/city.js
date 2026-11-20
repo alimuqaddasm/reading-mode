@@ -5,7 +5,7 @@
    moves anything), turn in quarter steps. Positions never change, so the city stays learnable. */
 (function () {
 'use strict';
-const { $, esc, SOLID, PAL, ATLAS_LAY, reduced, stageOf, TIERS } = window.OBS;
+const { $, esc, SOLID, PAL, ATLAS_LAY, reduced, stageOf, TIERS, badge, badgeBar } = window.OBS;
 let tier = new URLSearchParams(location.hash.slice(1)).get('m') || 'M1';
 document.documentElement.style.setProperty('--accent', PAL.accent); document.documentElement.style.setProperty('--accent-wash', PAL.accentWash);
 (() => { const st = document.getElementById('stage'); if (st) { st.style.background = PAL.bg; st.dataset.pal = PAL.dark ? 'dark' : 'light'; } })();
@@ -405,7 +405,7 @@ let rowSort = 'n';
 function sortRows(list) { const l = list.slice(); if (rowSort === 'stage') l.sort((a, b) => stageNum(b) - stageNum(a)); else if (rowSort === 'q') l.sort((a, b) => qOf(b) - qOf(a)); return l; }
 function sortBar() { return `<div class="seg sortby" role="group" aria-label="Sort the lessons">${[['n', 'In order'], ['stage', 'Furthest'], ['q', 'Most questions']].map(([k, t]) => `<button type="button" class="seg-b${rowSort === k ? ' on' : ''}" data-sort="${k}">${t}</button>`).join('')}</div>`; }
 function cellRow(c) { const n = c.node, q = qOf(c), st = c.isL ? (n.taught ? 'class lesson, taught' : 'class lesson, planned') : stepOf(c);
-  return `<button type="button" class="prow cr${pinned === c ? ' on' : ''}" data-cell="${c.i}" aria-label="${esc(n.code)}: ${esc(st)}${q ? `, ${q} open questions` : ''}"><span class="pn">${esc(n.short)}${c.fresh ? '<i class="dot"></i>' : ''}</span><span class="fls">${floorsOf(c)}</span><span class="pu" dir="rtl" lang="ur">${esc(n.ur || '')}</span><span class="pl">${n.Lnode ? `<em class="lb${n.Lnode.taught ? ' t' : ''}">${esc(n.Lnode.short)}</em>` : c.props.running ? '<em class="rb">writing</em>' : ''}</span><span class="pq">${q ? `<em class="qb" title="${q} open questions"><bdi>${q}</bdi> q</em>` : ''}</span></button>`; }
+  return `<button type="button" class="prow cr${pinned === c ? ' on' : ''}" data-cell="${c.i}" aria-label="${esc(n.code)}: ${esc(st)}${q ? `, ${q} open questions` : ''}"><span class="pn">${esc(n.short)}${c.fresh ? '<i class="dot"></i>' : ''} ${badge(n)}</span><span class="fls">${floorsOf(c)}</span><span class="pu" dir="rtl" lang="ur">${esc(n.ur || '')}</span><span class="pl">${n.Lnode ? `<em class="lb${n.Lnode.taught ? ' t' : ''}">${esc(n.Lnode.short)}</em>` : c.props.running ? '<em class="rb">writing</em>' : ''}</span><span class="pq">${q ? `<em class="qb" title="${q} open questions"><bdi>${q}</bdi> q</em>` : ''}</span></button>`; }
 function panel(c) {
   const el = $('#side');
   if (!c) {
@@ -429,7 +429,7 @@ function panel(c) {
   }
   if (c.isL) { panelL(c); slide(); return; }
   const n = c.node, steps = c.course ? STEP_C : STEP_A;
-  let h = `<span class="kind">${esc(n.kind)}${c.course ? '' : ` · atlas · taught at ${esc(n.m || 'M1')}`}</span><h2>${esc(n.code)}</h2>${n.ur ? `<div class="ur" lang="ur" dir="rtl">${esc(n.ur)}</div>` : ''}`;
+  let h = `<span class="kind">${esc(n.kind)}${c.course ? '' : ` · atlas · taught at ${esc(n.m || 'M1')}`}</span><h2>${esc(n.code)} ${badge(n)}</h2>${n.ur ? `<div class="ur" lang="ur" dir="rtl">${esc(n.ur)}</div>` : ''}`;
   const link = (t, code) => code && byCode.has(code) ? `<a data-goto="${esc(code)}">${esc(t)}</a>` : `<span>${esc(t)}</span>`;
   let chain = [];
   if (n.kind === 'Fasl') { const ss = n.kids || []; chain = [`<b>${esc(n.short)}</b>`, ss.length ? ss.map(s => link(s.code, s.code)).join('<br>') : '<span class="none">no sabaq yet</span>', ss.filter(s => s.L).map(s => `<span>${esc(s.L)}</span>`).join('<br>') || '<span class="none">none</span>']; }
@@ -464,7 +464,7 @@ function actions(c) { const q = nextQ(c), fr = c.fresh;
 function panelL(c) {
   const n = c.node, s = n.sab || {}, fs = chainOf(byNode.get(s) || c).filter(x => !x.isL), forms = new Set(formsOf(n).map(x => x[1]));
   const link = (t, code) => byCode.has(code) ? `<a data-goto="${esc(code)}">${esc(t)}</a>` : `<span>${esc(t)}</span>`;
-  let h = `<span class="kind">Class lesson</span><h2>${esc(n.code)}</h2>${n.ur ? `<div class="ur" lang="ur" dir="rtl">${esc(n.ur)}</div>` : ''}`;
+  let h = `<span class="kind">Class lesson</span><h2>${esc(n.code)} ${badge(n)}</h2>${n.ur ? `<div class="ur" lang="ur" dir="rtl">${esc(n.ur)}</div>` : ''}`;
   h += chainHTML([fs.length ? fs.map(f => link(f.node.code, f.node.code)).join('<br>') : '<span class="none">none listed</span>', link(s.short || '', s.code || ''), `<b>${esc(n.short)}</b>`]);
   h += `<div class="card"><h3>${n.taught ? 'Taught in class' : 'Planned, not taught yet'}</h3><span class="muted">Each roof tile is one form and turns gold when it is made; the whole classroom turns gold once the lesson is taught.</span><div class="forms">${FORMS_L.map(([, t]) => `<span class="form${forms.has(t) ? ' on' : ''}">${forms.has(t) ? '✓ ' : ''}${t}</span>`).join('')}</div>${n.rm ? `<a class="small" href="${esc(n.rm)}?t=files" target="rm">Open the files in Reading Mode</a>` : ''}</div>`;
   if (s.q) h += `<div class="card"><h3>Waiting on you</h3><div class="r"><span>Open questions on ${esc(s.short)}</span><b class="red">${s.q}</b></div></div>`;
@@ -725,7 +725,7 @@ $('#tablev').addEventListener('click', e => { const t = e.target.closest('[data-
   if (t.dataset.cell) select(cells[+t.dataset.cell], true); else if (t.dataset.fly) flyTo(districts[+t.dataset.fly]); else flyToBlock(blocks[+t.dataset.flyb]); });
 
 const ready = (m, w) => {
-  M = m; W0 = w; const q = hashRead(); tierBar();
+  M = m; W0 = w; const q = hashRead(); tierBar(); badgeBar(() => panel(pinned));
   layout(); index(); freshen(w); draw();
   const D = districts.find(d => d.id === q.get('d')), B = D && D.blocks.find(b => b.node.short === q.get('b')), p = byCode.get(q.get('p') || '');
   if (B) flyToBlock(B, false); else if (D) flyTo(D, false); else fitAll(false);
