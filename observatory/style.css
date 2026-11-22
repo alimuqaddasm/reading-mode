@@ -247,3 +247,11 @@ kbd{font-family:var(--ui);font-size:11.5px;border:1px solid var(--rule);border-b
 #svg #ovl,#svg #flathits,#svg #flats,#svg #fresh,#svg #paths,#svg #marks,#svg #babl,#svg #beams{pointer-events:none}
 
 #svg.zooming text,#svg.zooming .mk{display:none}
+
+/* S4: marks beside the badge (Ali's view only), home link and the All courses view */
+.homelink{font-size:12.5px;font-weight:600;color:var(--ink);text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+#allv h2{font-size:var(--t-16,16px);margin:20px 0 6px}
+#allv table{width:100%;max-width:780px;border-collapse:collapse;margin:4px 0 12px}
+#allv td{padding:9px 10px;border-bottom:1px solid var(--rule);vertical-align:middle;font-size:var(--t-13)}
+#allv td.n{text-align:right;white-space:nowrap}
+#allv a{cursor:pointer;color:inherit;text-decoration:underline;text-underline-offset:3px}

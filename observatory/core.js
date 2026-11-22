@@ -158,7 +158,8 @@ function badge(n) {   // n: a Sabaq node or a Class lesson node
   if (!LAYERS || !n || !n.cc) return '';
   const parts = n.kind === 'Class lesson' ? { bab: n.bab, lesson: n.n } : n.kind === 'Sabaq' ? { bab: n.bab, sabaq: n.n, hub: n.n } : null;
   const b = parts && LAYERS.badge(n.cc, parts, { view: badgeView() });
-  return b ? `<span class="${b.cls}" title="${esc(b.tip)}">${esc(b.word)}</span>` : '';
+  const ms = parts ? LAYERS.marksHtml(n.cc, parts, { view: badgeView() }) : '';   // S4: held, PDF back, on Drive: Ali's view only
+  return (b ? `<span class="${b.cls}" title="${esc(b.tip)}">${esc(b.word)}</span>` : '') + ms;
 }
 function badgeBar(onchange) {
   const el = $('#bview'); if (!el) return;
