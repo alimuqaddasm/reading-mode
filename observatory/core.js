@@ -151,7 +151,9 @@ function annotate(M, ri, marks) {
    The page hands it numbers only. Mentor view (Preview, Approved) is the default; "All layers" adds In main and Draft. ---------- */
 const BV = 'city.badges';
 const badgeView = () => { try { return localStorage.getItem(BV) === 'all' ? 'all' : 'mentor'; } catch (e) { return 'mentor'; } };
-let LAYERS = null;
+let LAYERS = null, LAYERS_WHY = '';
+// layers.json is large (hundreds of KB). One failed fetch used to hide the badges silently; try once more, and keep the reason to show in the stamp.
+const layersRetry = () => new Promise(r => setTimeout(r, 1200)).then(() => raw('layers.json', API_NOTES)).catch(e => { LAYERS_WHY = (e && e.message) || 'unknown'; return null; });
 function badge(n) {   // n: a Sabaq node or a Class lesson node
   if (!LAYERS || !n || !n.cc) return '';
   const parts = n.kind === 'Class lesson' ? { bab: n.bab, lesson: n.n } : n.kind === 'Sabaq' ? { bab: n.bab, sabaq: n.n, hub: n.n } : null;
@@ -162,7 +164,8 @@ function badgeBar(onchange) {
   const el = $('#bview'); if (!el) return;
   if (typeof EX44Badge !== 'undefined') EX44Badge.injectCss(document);
   const a = LAYERS ? LAYERS.asOf() : { text: 'not known yet', old: true }, v = badgeView();
-  el.innerHTML = `<span class="ex44-asof${a.old ? ' ex44-asof--old' : ''}" title="When EX-44 last measured each lesson's layer">Badges ${esc(a.text)}</span> <button type="button" class="link" aria-pressed="${v === 'all'}" title="${v === 'all' ? 'Back to the mentor view: Preview and Approved only' : 'Also show In main and Draft'}">${v === 'all' ? 'All layers' : 'Mentor view'}</button>`;
+  const why = !LAYERS && LAYERS_WHY ? ' (' + LAYERS_WHY + ')' : '';
+  el.innerHTML = `<span class="ex44-asof${a.old ? ' ex44-asof--old' : ''}" title="When EX-44 last measured each lesson's layer">Badges ${esc(a.text + why)}</span> <button type="button" class="link" aria-pressed="${v === 'all'}" title="${v === 'all' ? 'Back to the mentor view: Preview and Approved only' : 'Also show In main and Draft'}">${v === 'all' ? 'All layers' : 'Mentor view'}</button>`;
   el.querySelector('button').onclick = () => { try { v === 'all' ? localStorage.removeItem(BV) : localStorage.setItem(BV, 'all'); } catch (e) {} badgeBar(onchange); onchange && onchange(); };
 }
 
@@ -172,8 +175,8 @@ function start(ready) {
   async function load() {
     screen('loading');
     try {
-      const [w, ri, marks, lay] = await Promise.all([raw('workmap.json'), raw('reading/index.json').catch(() => null), raw('marks.json', API_NOTES).catch(() => ({})), raw('layers.json', API_NOTES).catch(() => null)]);
-      try { LAYERS = lay && typeof EX44Badge !== 'undefined' ? EX44Badge.read(lay) : null; } catch (e) { LAYERS = null; }
+      const [w, ri, marks, lay] = await Promise.all([raw('workmap.json'), raw('reading/index.json').catch(() => null), raw('marks.json', API_NOTES).catch(() => ({})), raw('layers.json', API_NOTES).catch(() => layersRetry())]);
+      try { LAYERS = lay && typeof EX44Badge !== 'undefined' ? EX44Badge.read(lay) : null; } catch (e) { LAYERS = null; LAYERS_WHY = 'could not read: ' + ((e && e.message) || 'bad format'); }
       const M = model(w, ready.tier); annotate(M, ri, marks || {});
       window.OBS.rebuild = tier => { const m2 = model(w, tier); annotate(m2, ri, marks || {}); return m2; };
       const age = (Date.now() - Date.parse(String(w.made || '').replace(' UTC', '').replace(' ', 'T') + 'Z')) / 36e5, mk = $('#made');
