@@ -522,7 +522,7 @@ $('#mini').addEventListener('click', e => { const r = e.target.getBoundingClient
 /* ---------- URL: focus, selection and filters can be bookmarked ---------- */
 function hashSet() {
   const q = new URLSearchParams(); if (focus) q.set('d', focus.D.id); if (focus && focus.B) q.set('b', focus.B.node.short); if (pinned) q.set('p', pinned.node.code);
-  if (chips.size) q.set('f', [...chips].join(',')); if (preset !== 'all') q.set('v', preset); if (rot) q.set('r', rot); if (tableOn) q.set('tab', '1'); if (tier !== 'M1') q.set('m', tier);
+  if (chips.size) q.set('f', [...chips].join(',')); if (preset !== 'all') q.set('v', preset); if (rot) q.set('r', rot); if (tableOn) q.set('tab', '1'); if (allOn) q.set('tab', 'all'); if (tier !== 'M1') q.set('m', tier);
   const h = q.toString(), key = (focus ? focus.D.id : '') + '|' + (focus && focus.B ? focus.B.node.short : ''), url = h ? '#' + h : location.pathname + location.search;
   if (booted && key !== lastKey) history.pushState(null, '', url); else history.replaceState(null, '', url); lastKey = key;
 }
@@ -701,7 +701,7 @@ function setTier(t) {
 }
 document.addEventListener('click', e => { const b = e.target.closest('#tier [data-tier]'); if (b) setTier(b.dataset.tier); });
 /* ---------- table view: every course and atlas side by side, one small square per lesson ---------- */
-let tableOn = false;
+let tableOn = false, allOn = false;
 function tableView() {
   const el = $('#tablev'); if (!tableOn) { el.hidden = true; return; }
   const sq = c => { const col = c.isL ? (c.node.taught ? PAL.L[0] : PAL.Lp[0]) : SOLID[c.node.kind === 'Sabaq' ? Math.min(3, stageOf(c.node.has)) : c.lvl];
@@ -719,8 +719,18 @@ function tableView() {
     <table><thead><tr><th>Atlas</th><th class="n">Fasls</th><th class="n">Written</th><th class="n">In a sabaq</th><th class="n">Refined</th><th class="n">Taught</th><th class="n">Being written</th><th>Babs</th></tr></thead><tbody>${ats}</tbody></table></div>`;
   el.hidden = false;
 }
-function setView(v) { tableOn = v === 'table'; document.querySelectorAll('#views [data-view]').forEach(a => { const on = a.dataset.view === v; a.classList.toggle('on', on); a.setAttribute('aria-pressed', on); }); tableView(); hashSet(); }
+function allView() {
+  const el = $('#allv'); if (!allOn) { el.hidden = true; return; }
+  const R = (W0 && W0.repos) || [], HUB = { 'maarif-zm': 'ZM', 'maarif-tauheed': 'TH', 'maarif-mahdaviyat': 'MA' }, repos = new Set(R.map(r => r.repo));
+  const groups = []; R.forEach(r => { let g = groups.find(x => x.n === r.group); if (!g) groups.push(g = { n: r.group, r: [] }); g.r.push(r); });
+  const row = r => { const di = HUB[r.id] ? districts.findIndex(D => D.node.kind !== 'Atlas' && D.node.code === HUB[r.id]) : -1;
+    return `<tr><td><b>${esc(r.name)}</b><br><span class="muted">${esc(r.repo)}${r.units ? ' \u00b7 ' + r.units + ' lessons' : ''}${r.last ? ' \u00b7 last change ' + esc(r.last) : ''}</span></td><td class="n">${di >= 0 ? `<a data-fly="${di}">Detail page</a>` : '<span class="muted">In the list</span>'}</td></tr>`; };
+  el.innerHTML = `<div class="tw"><h2>All courses</h2><p class="muted">${R.length} courses from ${repos.size} repos. The hub courses fly to their district; the rest are listed with their repo and the number of lessons found.</p>${groups.map(g => `<h2>${esc(g.n)} <small class="muted">${g.r.length}</small></h2><table><tbody>${g.r.map(row).join('')}</tbody></table>`).join('')}</div>`;
+  el.hidden = false;
+}
+function setView(v) { tableOn = v === 'table'; allOn = v === 'all'; document.querySelectorAll('#views [data-view]').forEach(a => { const on = a.dataset.view === v; a.classList.toggle('on', on); a.setAttribute('aria-pressed', on); }); tableView(); allView(); hashSet(); }
 $('#views').addEventListener('click', e => { const a = e.target.closest('[data-view]'); if (!a) return; e.preventDefault(); setView(a.dataset.view); });
+$('#allv').addEventListener('click', e => { const t = e.target.closest('[data-fly]'); if (!t) return; setView('city'); flyTo(districts[+t.dataset.fly]); });
 $('#tablev').addEventListener('click', e => { const t = e.target.closest('[data-cell],[data-fly],[data-flyb]'); if (!t) return; setView('city');
   if (t.dataset.cell) select(cells[+t.dataset.cell], true); else if (t.dataset.fly) flyTo(districts[+t.dataset.fly]); else flyToBlock(blocks[+t.dataset.flyb]); });
 
@@ -730,7 +740,7 @@ const ready = (m, w) => {
   const D = districts.find(d => d.id === q.get('d')), B = D && D.blocks.find(b => b.node.short === q.get('b')), p = byCode.get(q.get('p') || '');
   if (B) flyToBlock(B, false); else if (D) flyTo(D, false); else fitAll(false);
   if (p) select(p, false); else panel(null);
-  if (q.get('tab')) setView('table');
+  if (q.get('tab') === 'all') setView('all'); else if (q.get('tab')) setView('table');
   booted = true;
 };
 ready.tier = tier;
