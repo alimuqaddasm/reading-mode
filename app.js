@@ -46,6 +46,7 @@ const cache = {};
 async function data(rel) { return cache[rel] || (cache[rel] = JSON.parse(await gh('reading/' + rel, null, true, DATA))); }
 
 /* ---------- state ---------- */
+const layersWhy = e => (e && e.status ? 'GitHub answered ' + e.status + ([401, 403, 404].includes(e.status) ? ', this key may not reach hub-notes' : '') : ((e && e.message) || 'unknown'));
 const S = { audio: {}, index: null, notes: { notes: {}, marks: {} }, notesSha: null, cur: null, key: '', curBlock: null, wmBase: WM };
 const pref = { fs: LS.get('fs', 21), show: LS.get('show', { note: true, q: true, tc: true, omit: true }), focus: null };
 function setFs(v) { pref.fs = Math.min(28, Math.max(15, v)); document.documentElement.style.setProperty('--fs', pref.fs + 'px'); LS.set('fs', pref.fs); }
@@ -60,7 +61,10 @@ async function load() {
     S.index = idx; S.audio = aud || {};
     if (j) { S.notes = JSON.parse(b64dec(j.content)); S.notesSha = j.sha; } else { S.notes = { notes: {}, marks: {} }; S.notesSha = null; }
     S.notes.notes = S.notes.notes || {}; S.notes.marks = S.notes.marks || {};
-    try { S.layers = EX44Badge.read(JSON.parse(b64dec((await gh('layers.json')).content))); } catch (e) { S.layers = null; }
+    S.layers = null; S.layersWhy = '';   // one retry; a failure is shown in the stamp, never hidden
+    for (let i = 0; i < 2 && !S.layers; i++) {
+      try { if (i) await new Promise(r => setTimeout(r, 1200)); S.layers = EX44Badge.read(JSON.parse(b64dec((await gh('layers.json')).content))); } catch (e) { S.layersWhy = layersWhy(e); }
+    }
     route();
   } catch (e) {
     if (e.status === 401 || e.status === 404) { setKey(''); connect(e.status === 404 ? 'This key cannot open hub-data and hub-notes. Make a key for those two repos (steps above) and paste it here.' : e.message); return; }
@@ -162,9 +166,10 @@ function lbadge(c, parts) {
 }
 const sbadge = (c, bn, s) => lbadge(c, { bab: bn, sabaq: s.n, hub: s.n });
 function badgeBar() {
+  const why = !S.layers && S.layersWhy ? ' (' + S.layersWhy + ')' : '';
   if (typeof EX44Badge !== 'undefined') EX44Badge.injectCss(document);
   const a = S.layers ? S.layers.asOf() : { text: 'not known yet', old: true }, v = badgeView();
-  return `<span class="ex44-asof${a.old ? ' ex44-asof--old' : ''}" title="When EX-44 last measured each lesson's layer">Badges ${esc(a.text)}</span>` +
+  return `<span class="ex44-asof${a.old ? ' ex44-asof--old' : ''}" title="When EX-44 last measured each lesson's layer">Badges ${esc(a.text + why)}</span>` +
     `<button type="button" class="btn" id="bBadges" aria-pressed="${v === 'all'}" title="${v === 'all' ? 'Back to the mentor view: Preview and Approved only' : 'Also show In main and Draft'}">${v === 'all' ? 'All layers' : 'Mentor view'}</button>`;
 }
 function topBar(o) {
