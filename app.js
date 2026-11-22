@@ -33,7 +33,7 @@ const ICON = {
 
 /* ---------- GitHub ---------- */
 const b64enc = s => { const b = new TextEncoder().encode(s); let o = ''; for (let i = 0; i < b.length; i += 0x8000) o += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(o); };
-const b64dec = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\n/g, '')), c => c.charCodeAt(0)));
+const b64dec = s => new TextDecoder().decode(Uint8Array.from(atob(String(s || '').replace(/\n/g, '')), c => c.charCodeAt(0)));
 async function gh(path, opts, raw, repo) {
   let r;
   const headers = { Authorization: 'Bearer ' + getKey(), Accept: raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
@@ -42,6 +42,7 @@ async function gh(path, opts, raw, repo) {
   if (!r.ok) { const e = new Error(r.status === 401 ? 'GitHub refused the key. It may have expired or been revoked.' : r.status === 404 ? `Not found, or this key cannot open it: ${path}` : `GitHub answered ${r.status}.`); e.status = r.status; throw e; }
   return raw ? r.text() : r.json();
 }
+const layersWhy = e => (e && e.status ? 'GitHub answered ' + e.status + ([401, 403, 404].includes(e.status) ? ', this key may not reach hub-notes' : '') : ((e && e.message) || 'unknown'));
 const cache = {};
 async function data(rel) { return cache[rel] || (cache[rel] = JSON.parse(await gh('reading/' + rel, null, true, DATA))); }
 
@@ -60,7 +61,10 @@ async function load() {
     S.index = idx; S.audio = aud || {};
     if (j) { S.notes = JSON.parse(b64dec(j.content)); S.notesSha = j.sha; } else { S.notes = { notes: {}, marks: {} }; S.notesSha = null; }
     S.notes.notes = S.notes.notes || {}; S.notes.marks = S.notes.marks || {};
-    try { S.layers = EX44Badge.read(JSON.parse(b64dec((await gh('layers.json')).content))); } catch (e) { S.layers = null; }
+    S.layers = null; S.layersWhy = '';   // one retry; a failure is shown in the stamp, never hidden
+    for (let i = 0; i < 2 && !S.layers; i++) {
+      try { if (i) await new Promise(r => setTimeout(r, 1200)); S.layers = EX44Badge.read(JSON.parse(await gh('layers.json', null, true))); } catch (e) { S.layersWhy = layersWhy(e); }
+    }
     route();
   } catch (e) {
     if (e.status === 401 || e.status === 404) { setKey(''); connect(e.status === 404 ? 'This key cannot open hub-data and hub-notes. Make a key for those two repos (steps above) and paste it here.' : e.message); return; }
@@ -164,7 +168,8 @@ const sbadge = (c, bn, s) => lbadge(c, { bab: bn, sabaq: s.n, hub: s.n });
 function badgeBar() {
   if (typeof EX44Badge !== 'undefined') EX44Badge.injectCss(document);
   const a = S.layers ? S.layers.asOf() : { text: 'not known yet', old: true }, v = badgeView();
-  return `<span class="ex44-asof${a.old ? ' ex44-asof--old' : ''}" title="When EX-44 last measured each lesson's layer">Badges ${esc(a.text)}</span>` +
+  const why = !S.layers && S.layersWhy ? ' (' + S.layersWhy + ')' : '';
+  return `<span class="ex44-asof${a.old ? ' ex44-asof--old' : ''}" title="When EX-44 last measured each lesson's layer">Badges ${esc(a.text + why)}</span>` +
     `<button type="button" class="btn" id="bBadges" aria-pressed="${v === 'all'}" title="${v === 'all' ? 'Back to the mentor view: Preview and Approved only' : 'Also show In main and Draft'}">${v === 'all' ? 'All layers' : 'Mentor view'}</button>`;
 }
 function topBar(o) {
